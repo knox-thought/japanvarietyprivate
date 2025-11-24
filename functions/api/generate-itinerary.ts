@@ -1,6 +1,12 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { TripPreferences, AIItineraryResponse, ServiceType } from "../../types";
 
+const ALLOWED_ORIGINS = [
+  'https://japanvarietyprivate.pages.dev',
+  'https://japanvarietyprivate.knox-thought.com',
+  'http://localhost:3000',
+];
+
 /**
  * Cloudflare Pages Function
  * This file is automatically deployed as a serverless function at /api/generate-itinerary
@@ -9,14 +15,18 @@ import { TripPreferences, AIItineraryResponse, ServiceType } from "../../types";
  * but the code structure is very similar.
  */
 export const onRequestPost = async ({ request, env }: { request: Request; env: any }) => {
+  const origin = request.headers.get('Origin') || '';
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : '';
+
   // Handle CORS preflight
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
+        'Vary': 'Origin',
       },
     });
   }
@@ -26,12 +36,13 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
     console.error('GEMINI_API_KEY is not configured');
     return new Response(
       JSON.stringify({ error: 'API key not configured. Please set GEMINI_API_KEY environment variable.' }),
-      { 
-        status: 500, 
-        headers: { 
+      {
+        status: 500,
+        headers: {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        } 
+          ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
+          'Vary': 'Origin',
+        },
       }
     );
   }
@@ -42,12 +53,13 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
     if (!prefs) {
       return new Response(
         JSON.stringify({ error: 'Missing trip preferences' }),
-        { 
-          status: 400, 
-          headers: { 
+        {
+          status: 400,
+          headers: {
             'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          } 
+            ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
+            'Vary': 'Origin',
+          },
         }
       );
     }
@@ -217,12 +229,13 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
     if (!text) {
       return new Response(
         JSON.stringify({ error: 'No response from AI service' }),
-        { 
-          status: 500, 
-          headers: { 
+        {
+          status: 500,
+          headers: {
             'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          } 
+            ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
+            'Vary': 'Origin',
+          },
         }
       );
     }
@@ -235,7 +248,8 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
         status: 200,
         headers: {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
+          ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
+          'Vary': 'Origin',
         },
       }
     );
@@ -248,12 +262,13 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
         error: 'Failed to generate itinerary',
         message: errorMessage 
       }),
-      { 
-        status: 500, 
-        headers: { 
+      {
+        status: 500,
+        headers: {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        } 
+          ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
+          'Vary': 'Origin',
+        },
       }
     );
   }
