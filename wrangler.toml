@@ -1,0 +1,22 @@
+# Cloudflare Workers/Pages Configuration
+# This file is used for Cloudflare Pages deployment
+# Pages Functions are automatically detected from the functions/ directory
+
+name = "japan-private-journeys"
+compatibility_date = "2024-01-01"
+pages_build_output_dir = "dist"
+
+# Environment variables can be set via Cloudflare Dashboard
+# or using wrangler CLI: wrangler pages secret put GEMINI_API_KEY
+
+[env.production]
+name = "japan-private-journeys"
+
+# Build configuration
+[build]
+command = "npm run build"
+cwd = "."
+
+# Note: Environment variables should be set in Cloudflare Dashboard
+# under Pages > Settings > Environment Variables
+
