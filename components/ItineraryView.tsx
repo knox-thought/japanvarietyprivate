@@ -19,12 +19,22 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({ plan, prefs, onRes
   const formattedQuotation = useMemo(() => {
     if (!plan?.quotationForOperator) return '';
 
-    // Each day block starts with a date line in DD/MM/YYYY format.
-    // Insert an extra newline before each new date (except the first).
-    return plan.quotationForOperator.replace(
-      /(\n)(\d{2}\/\d{2}\/\d{4})/g,
-      '\n\n$2'
-    );
+    // Normalize line endings and insert a blank line before each new date line (except the first).
+    // More robust than regex replace when AI output format changes slightly.
+    const lines = plan.quotationForOperator.split(/\r?\n/);
+    const out: string[] = [];
+
+    for (const line of lines) {
+      const isDateLine = /^\d{2}\/\d{2}\/\d{4}/.test(line.trim());
+
+      if (isDateLine && out.length > 0 && out[out.length - 1] !== '') {
+        out.push(''); // ensure exactly one blank line before each subsequent date block
+      }
+
+      out.push(line);
+    }
+
+    return out.join('\n');
   }, [plan?.quotationForOperator]);
 
   const getServiceBadge = (typeString: string) => {
