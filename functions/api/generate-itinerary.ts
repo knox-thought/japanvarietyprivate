@@ -163,6 +163,14 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
       - HiAce Grand Cabin: Max 9 pax + luggage.
       - Commuter/Coaster: Large groups.
 
+      Charter Service Time Rules (VERY IMPORTANT):
+      - These rules apply only to "${ServiceType.CHARTER}" (10-hour) service days.
+      - Standard contracted service is 10 hours, but you MUST design the customer's schedule so that car usage is typically about 8–9 hours total.
+      - ALWAYS aim to start the car service around 08:00–09:00 local time unless there is a strong reason (e.g. flight times) to start earlier/later.
+      - ALWAYS aim to have the car return to the final drop-off (usually the hotel) at least 1 hour BEFORE reaching the 10-hour limit, to allow buffer for traffic or delays.
+      - The car can technically be extended up to 12 hours total (2 hours of overtime), but this should be used ONLY when really necessary (for example, very long-distance days).
+      - If overtime (more than 10 hours) is used, make it clear in the Thai description for that day why overtime is needed. NEVER exceed 12 hours of car usage in a single day.
+
       Task:
       Generate the JSON response. 
       Crucially, generate the 'quotationForOperator' field. This is a text block for the car operator.
