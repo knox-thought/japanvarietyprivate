@@ -113,16 +113,15 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({ plan, prefs, onRes
 
             {/* Activities */}
             <div className="space-y-0 relative">
-              {/* Vertical Line */}
-              <div className="absolute left-[9px] top-2 bottom-0 w-[1px] bg-gray-200 md:left-1/2 md:-ml-px"></div>
+              {/* Vertical Line (timeline spine) */}
+              <div className="absolute left-[9px] top-4 bottom-0 w-[1px] bg-gray-200 md:left-1/2 md:-ml-px"></div>
 
               {day.activities.map((act, idx) => (
                 <div key={idx} className="relative flex flex-col md:flex-row gap-4 md:gap-0 group mb-8 last:mb-0">
                   
                   {/* Time (Desktop Left) */}
-                  <div className="md:w-1/2 md:pr-12 md:text-right flex md:block items-center gap-4">
+                  <div className="md:w-1/2 md:pr-12 md:text-right flex md:block items-center gap-4 pt-1">
                      <span className="inline-block text-sm font-bold text-black bg-amber-400 px-3 py-1 shadow-sm md:mr-0 min-w-[60px] text-center">{act.time}</span>
-                     <div className="md:hidden w-3 h-3 rounded-full bg-black border-2 border-white shadow z-10 absolute left-[4px]"></div>
                   </div>
 
                   {/* Center Dot (Desktop) */}
