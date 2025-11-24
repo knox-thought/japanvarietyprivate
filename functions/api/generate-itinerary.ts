@@ -166,10 +166,15 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
       Charter Service Time Rules (VERY IMPORTANT):
       - These rules apply only to "${ServiceType.CHARTER}" (10-hour) service days.
       - Standard contracted service is 10 hours, but you MUST design the customer's schedule so that car usage is typically about 8–9 hours total.
-      - ALWAYS aim to start the car service around 08:00–09:00 local time unless there is a strong reason (e.g. flight times) to start earlier/later.
-      - ALWAYS aim to have the car return to the final drop-off (usually the hotel) at least 1 hour BEFORE reaching the 10-hour limit, to allow buffer for traffic or delays.
+      - In general, start the car service around 08:00–09:00 local time. You may adjust earlier/later when it makes the itinerary more natural, but avoid wasteful very early starts.
+      - Strongly prefer to have the car return to the final drop-off (usually the hotel) at least 1 hour BEFORE reaching the 10-hour limit, to allow buffer for traffic or delays.
       - The car can technically be extended up to 12 hours total (2 hours of overtime), but this should be used ONLY when really necessary (for example, very long-distance days).
       - If overtime (more than 10 hours) is used, make it clear in the Thai description for that day why overtime is needed. NEVER exceed 12 hours of car usage in a single day.
+
+      Dinner / Evening Rules for Charter Days:
+      - For charter (10-hour) service days, whenever possible, plan the **dinner** at a restaurant or area close to the guest's hotel.
+      - Minimize driving time AFTER dinner. Ideally, after dinner the car should only need a short drive back to the hotel.
+      - If there is an important night activity after dinner (e.g. night view, illumination), try to choose a spot that is still relatively close to the hotel, not on the opposite side of the city.
 
       Task:
       Generate the JSON response. 
