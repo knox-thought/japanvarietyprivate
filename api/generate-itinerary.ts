@@ -1,16 +1,26 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { TripPreferences, AIItineraryResponse, ServiceType } from "../types";
 
+const ALLOWED_ORIGINS = [
+  'https://japanvarietyprivate.pages.dev',
+  'https://japanvarietyprivate.knox-thought.com',
+  'http://localhost:3000',
+];
+
 // Vercel Serverless Function
 export default async function handler(req: Request): Promise<Response> {
+  const origin = req.headers.get('Origin') || '';
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : '';
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       status: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
+        'Vary': 'Origin',
       },
     });
   }
@@ -31,7 +41,8 @@ export default async function handler(req: Request): Promise<Response> {
         status: 500, 
         headers: { 
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
+          ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
+          'Vary': 'Origin',
         } 
       }
     );
@@ -47,7 +58,8 @@ export default async function handler(req: Request): Promise<Response> {
           status: 400, 
           headers: { 
             'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
+            ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
+            'Vary': 'Origin',
           } 
         }
       );
@@ -223,7 +235,8 @@ export default async function handler(req: Request): Promise<Response> {
         status: 200,
         headers: {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
+          ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
+          'Vary': 'Origin',
         },
       }
     );
@@ -240,7 +253,8 @@ export default async function handler(req: Request): Promise<Response> {
         status: 500, 
         headers: { 
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
+          ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
+          'Vary': 'Origin',
         } 
       }
     );
