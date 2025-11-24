@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AIItineraryResponse, TripPreferences } from '../types';
 import { Car, MapPin, Calendar, Users, Sparkles, Briefcase, Check } from './Icons';
 import clsx from 'clsx';
@@ -12,6 +12,18 @@ interface ItineraryViewProps {
 export const ItineraryView: React.FC<ItineraryViewProps> = ({ plan, prefs, onReset }) => {
   const [copied, setCopied] = useState(false);
 
+  // Format quotation text: add an extra blank line between each service day
+  const formattedQuotation = useMemo(() => {
+    if (!plan?.quotationForOperator) return '';
+
+    // Each day block starts with a date line in DD/MM/YYYY format.
+    // Insert an extra newline before each new date (except the first).
+    return plan.quotationForOperator.replace(
+      /(\n)(\d{2}\/\d{2}\/\d{4})/g,
+      '\n\n$2'
+    );
+  }, [plan?.quotationForOperator]);
+
   const getServiceBadge = (typeString: string) => {
     const isCharter = typeString.includes('Charter') || typeString.includes('เหมา');
     const isTransfer = typeString.includes('Transfer') || typeString.includes('รับ');
@@ -23,7 +35,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({ plan, prefs, onRes
   };
 
   const copyQuote = () => {
-    navigator.clipboard.writeText(plan.quotationForOperator);
+    navigator.clipboard.writeText(formattedQuotation);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -143,7 +155,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({ plan, prefs, onRes
           </button>
         </div>
         <div className="bg-black p-4 sm:p-6 rounded-sm font-mono text-xs md:text-sm text-gray-300 whitespace-pre-wrap leading-relaxed border border-gray-800 shadow-inner overflow-x-auto">
-          {plan.quotationForOperator}
+          {formattedQuotation}
         </div>
       </div>
 
