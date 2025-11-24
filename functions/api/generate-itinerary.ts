@@ -115,15 +115,26 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
         } else {
            // Takeoff: Dropoff is Takeoff Time - 2h
            const [h, m] = d.flightInfo.time.split(':').map(Number);
-           const dropoffH = h - 2;
-           desc += ` (FLIGHT TAKEOFF at ${d.flightInfo.time}`;
+           const isRedEye = h >= 0 && h < 4; // flights just after midnight
+           let dropoffH = h - 2;
+           let dropoffNote = '';
+           if (dropoffH < 0) {
+             dropoffH += 24;
+             dropoffNote = ' (previous calendar day)';
+           }
+           
+           desc += ` (FLIGHT TAKEOFF at ${d.flightInfo.time}${isRedEye ? ' (red-eye / just after midnight)' : ''}`;
            if (d.flightInfo.pickupLocation) {
              desc += `, Pickup Location: ${d.flightInfo.pickupLocation}`;
            }
            if (d.flightInfo.departureAirport) {
              desc += `, Departure Airport: ${d.flightInfo.departureAirport}`;
            }
-           desc += `, Must arrive airport by ${dropoffH}:${m.toString().padStart(2,'0')})`;
+           desc += `, Must arrive airport by ${dropoffH.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}${dropoffNote})`;
+           
+           if (isRedEye) {
+             desc += ' IMPORTANT: This is a red-eye flight departing shortly after midnight. Treat this transfer as happening on the previous evening (previous calendar day) when planning the schedule.';
+           }
         }
       }
       return desc;
