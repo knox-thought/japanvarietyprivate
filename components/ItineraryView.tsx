@@ -7,10 +7,13 @@ interface ItineraryViewProps {
   plan: AIItineraryResponse;
   prefs: TripPreferences;
   onReset: () => void;
+  onRefine: (note: string) => Promise<void> | void;
+  isRefining?: boolean;
 }
 
-export const ItineraryView: React.FC<ItineraryViewProps> = ({ plan, prefs, onReset }) => {
+export const ItineraryView: React.FC<ItineraryViewProps> = ({ plan, prefs, onReset, onRefine, isRefining }) => {
   const [copied, setCopied] = useState(false);
+  const [refineNote, setRefineNote] = useState('');
 
   // Format quotation text: add an extra blank line between each service day
   const formattedQuotation = useMemo(() => {
@@ -156,6 +159,57 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({ plan, prefs, onRes
         </div>
         <div className="bg-black p-4 sm:p-6 rounded-sm font-mono text-xs md:text-sm text-gray-300 whitespace-pre-wrap leading-relaxed border border-gray-800 shadow-inner overflow-x-auto">
           {formattedQuotation}
+        </div>
+      </div>
+
+      {/* AI Refinement Section */}
+      <div className="bg-white border border-dashed border-amber-200 rounded-sm p-5 sm:p-6 md:p-7 shadow-sm space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-base sm:text-lg font-serif font-bold text-gray-900 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-500" />
+              ปรับแผนการเดินทางด้วย AI
+            </h3>
+            <p className="text-xs sm:text-sm text-gray-500 mt-1">
+              ใส่คำขอเพิ่มเติม (เช่น เพิ่มวันช้อปปิ้ง, ลดเวลาเดินทาง, อยากเน้นคาเฟ่) แล้วให้ระบบสร้างแผนใหม่ให้ทันที
+            </p>
+          </div>
+        </div>
+        <div className="space-y-3">
+          <textarea
+            value={refineNote}
+            onChange={(e) => setRefineNote(e.target.value)}
+            rows={3}
+            placeholder="เช่น อยากให้วันที่ 2 เน้นช้อปปิ้งที่ Shibuya และ Harajuku มากขึ้น และลดจำนวนศาลเจ้าลง / อยากเพิ่มคาเฟ่วิวภูเขาไฟฟูจิในหนึ่งวัน"
+            className="w-full text-sm rounded-sm border border-gray-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 px-3 py-2 resize-none outline-none bg-white/60"
+          />
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <p className="text-[11px] sm:text-xs text-gray-400">
+              ระบบจะสร้างแผนใหม่ทั้งทริป โดยอิงจากข้อมูลเดิมและคำขอเพิ่มเติมนี้ คุณยังสามารถกดคัดลอก Quotation ใหม่ได้เหมือนเดิม
+            </p>
+            <button
+              onClick={() => {
+                if (!refineNote.trim() || isRefining) return;
+                onRefine(refineNote.trim());
+              }}
+              disabled={isRefining || !refineNote.trim()}
+              className={clsx(
+                "inline-flex items-center justify-center px-4 sm:px-6 py-2.5 rounded-sm text-xs sm:text-sm font-bold tracking-widest uppercase transition-all",
+                isRefining || !refineNote.trim()
+                  ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                  : "bg-amber-500 text-black hover:bg-amber-400 shadow-md"
+              )}
+            >
+              {isRefining ? (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2 animate-spin-slow" />
+                  กำลังปรับแผน...
+                </>
+              ) : (
+                <>ปรับแผนด้วย AI อีกครั้ง</>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 

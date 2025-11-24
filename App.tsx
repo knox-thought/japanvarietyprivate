@@ -31,6 +31,38 @@ function App() {
     }
   };
 
+  const handleRefineItinerary = async (note: string) => {
+    if (!prefs) return;
+
+    const mergedPrefs: TripPreferences = {
+      ...prefs,
+      customIdeas: [
+        prefs.customIdeas?.trim(),
+        'เพิ่มเติมจากลูกค้า (ปรับแผนรอบที่สอง):',
+        note.trim(),
+      ]
+        .filter(Boolean)
+        .join('\n\n'),
+    };
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await generateItinerary(mergedPrefs);
+      setItinerary(result);
+      setPrefs(mergedPrefs);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : 'เกิดข้อผิดพลาดในการสร้างแผนการเดินทาง กรุณาลองใหม่อีกครั้ง';
+      setError(errorMessage);
+      console.error('Error refining itinerary:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const reset = () => {
     setPrefs(null);
     setItinerary(null);
@@ -128,7 +160,15 @@ function App() {
              >
                 ← Back to Planning
              </button>
-             {prefs && <ItineraryView plan={itinerary} prefs={prefs} onReset={reset} />}
+             {prefs && itinerary && (
+               <ItineraryView
+                 plan={itinerary}
+                 prefs={prefs}
+                 onReset={reset}
+                 onRefine={handleRefineItinerary}
+                 isRefining={isLoading}
+               />
+             )}
           </div>
         )}
 
