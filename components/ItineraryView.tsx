@@ -25,7 +25,8 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({ plan, prefs, onRes
     const out: string[] = [];
 
     for (const line of lines) {
-      const isDateLine = /^\d{2}\/\d{2}\/\d{4}/.test(line.trim());
+      const trimmed = line.trim();
+      const isDateLine = /^(\d{2}\/\d{2}\/\d{4}|Date\s+\d{2}\/\d{2}\/\d{4})/.test(trimmed);
 
       if (isDateLine && out.length > 0 && out[out.length - 1] !== '') {
         out.push(''); // ensure exactly one blank line before each subsequent date block
