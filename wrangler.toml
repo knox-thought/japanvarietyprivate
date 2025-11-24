@@ -12,11 +12,6 @@ pages_build_output_dir = "dist"
 [env.production]
 name = "japan-private-journeys"
 
-# Build configuration
-[build]
-command = "npm run build"
-cwd = "."
-
 # Note: Environment variables should be set in Cloudflare Dashboard
 # under Pages > Settings > Environment Variables
 
