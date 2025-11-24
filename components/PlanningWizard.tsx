@@ -517,10 +517,13 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
          </div>
       </div>
 
-       <div className="mt-6 p-4 bg-amber-50 rounded-sm border border-amber-100 text-sm text-amber-900 flex gap-2">
-         <Car className="w-5 h-5 flex-shrink-0 text-amber-600" />
-         <p>คำแนะนำ: รถ Alphard นั่งได้สูงสุด 4 ท่านหากมีกระเป๋าใหญ่ 4 ใบ หากสัมภาระเยอะกว่านี้แนะนำรถตู้ HiAce</p>
-       </div>
+      <div className="mt-6 p-4 bg-amber-50 rounded-sm border border-amber-100 text-sm text-amber-900 flex gap-2">
+        <Car className="w-5 h-5 flex-shrink-0 text-amber-600" />
+        <p>
+          คำแนะนำ: รถ <strong>Alphard</strong> เหมาะกับกลุ่มเล็ก 5–6 ท่าน พร้อมกระเป๋า 3–4 ใบ (24 นิ้ว) หรือ 2–3 ใบ (28 นิ้ว).
+          ถ้าผู้โดยสารหรือกระเป๋าเยอะ แนะนำเลือก <strong>Hiace Grand Cabin</strong> หรือ <strong>Coaster</strong> แทน
+        </p>
+      </div>
     </div>
   );
 

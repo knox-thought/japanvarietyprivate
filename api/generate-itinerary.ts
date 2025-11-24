@@ -182,10 +182,19 @@ export default async function handler(req: Request): Promise<Response> {
       "${customIdeas}"
       * Please integrate these requests into the itinerary where appropriate based on the dates.
 
-      Vehicle Rules:
-      - Alphard: Max 4-5 pax depending on luggage.
-      - HiAce Grand Cabin: Max 9 pax + luggage.
-      - Commuter/Coaster: Large groups.
+      Vehicle Rules (VERY IMPORTANT):
+      - Toyota Alphard (Luxury Van):
+        * Comfortably seats 5–6 guests.
+        * Luggage guideline: about 3–4 suitcases (24”) OR 2–3 suitcases (28”).
+        * Best for small families or groups that want extra comfort.
+      - Toyota Hiace Grand Cabin (Van):
+        * Comfortably seats up to 9 guests.
+        * Luggage guideline: about 7–9 suitcases (24”) OR 5–7 suitcases (28”).
+        * Suitable for medium-size groups with normal luggage.
+      - Toyota Coaster (Micro Bus):
+        * Seats about 17–18 guests.
+        * Luggage guideline: around 15–17 suitcases (mixed sizes). It can feel tighter and some luggage may need to be placed along the aisle.
+        * Use this mainly for larger groups where budget per person is important.
 
       Task:
       Generate the JSON response. 
