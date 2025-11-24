@@ -4,6 +4,7 @@ import { ItineraryView } from './components/ItineraryView';
 import { TripPreferences, AIItineraryResponse } from './types';
 import { generateItinerary } from './services/geminiService';
 import { Sparkles } from './components/Icons';
+import logoImage from './logo/japan-variety-logo-1.png';
 
 function App() {
   const [prefs, setPrefs] = useState<TripPreferences | null>(null);
@@ -48,13 +49,21 @@ function App() {
       {/* Navigation */}
       <nav className="relative z-50 px-4 sm:px-6 py-4 sm:py-6 flex justify-between items-center max-w-7xl mx-auto border-b border-gray-100/50 backdrop-blur-sm">
         <div className="flex items-center gap-2 sm:gap-3">
-            <div className="bg-black text-amber-500 p-2 sm:p-2.5 rounded-sm shadow-md">
-                <span className="font-serif font-bold text-base sm:text-lg tracking-widest">JP</span>
-            </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <img
+              src={logoImage}
+              alt="JAPANVARIETY PRIVATE"
+              className="w-9 h-9 sm:w-10 sm:h-10 object-contain rounded-sm shadow-md bg-white"
+            />
             <div className="hidden sm:flex flex-col">
-              <span className="font-serif font-bold text-xl tracking-tight text-gray-900">JAPAN PRIVATE</span>
-              <span className="text-[10px] uppercase tracking-[0.2em] text-amber-600 font-bold">Journeys</span>
+              <span className="font-serif font-bold text-xl tracking-tight text-gray-900">
+                JAPANVARIETY PRIVATE
+              </span>
+              <span className="text-[10px] uppercase tracking-[0.2em] text-amber-600 font-bold">
+                Tailored Japan Journeys
+              </span>
             </div>
+          </div>
         </div>
         <button className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-gray-500 hover:text-black transition-colors hidden xs:block">Client Login</button>
       </nav>
