@@ -47,25 +47,27 @@ function App() {
       </div>
 
       {/* Navigation */}
-      <nav className="relative z-50 px-4 sm:px-6 py-4 sm:py-6 flex justify-between items-center max-w-7xl mx-auto border-b border-gray-100/50 backdrop-blur-sm">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <img
-              src={logoImage}
-              alt="JAPANVARIETY PRIVATE"
-              className="w-9 h-9 sm:w-10 sm:h-10 object-contain rounded-sm shadow-md bg-white"
-            />
-            <div className="hidden sm:flex flex-col">
-              <span className="font-serif font-bold text-xl tracking-tight text-gray-900">
+      <nav className="relative z-50 px-4 sm:px-6 py-4 sm:py-6 flex justify-between items-center max-w-7xl mx-auto border-b border-gray-100/40 backdrop-blur-sm">
+        <div className="flex items-center gap-3 sm:gap-4">
+          {/* Logo lockup */}
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-gradient-to-br from-amber-400 via-red-500 to-black flex items-center justify-center shadow-lg ring-1 ring-black/10 overflow-hidden">
+              <img
+                src={logoImage}
+                alt="JAPANVARIETY PRIVATE"
+                className="w-9 h-9 sm:w-11 sm:h-11 object-contain"
+              />
+            </div>
+            <div className="flex flex-col leading-tight">
+              <span className="font-serif font-bold text-lg sm:text-xl tracking-tight text-gray-900">
                 JAPANVARIETY PRIVATE
               </span>
-              <span className="text-[10px] uppercase tracking-[0.2em] text-amber-600 font-bold">
-                Tailored Japan Journeys
+              <span className="text-[11px] sm:text-xs tracking-[0.18em] text-amber-600 font-semibold uppercase">
+                เจอนี่
               </span>
             </div>
           </div>
         </div>
-        <button className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-gray-500 hover:text-black transition-colors hidden xs:block">Client Login</button>
       </nav>
 
       <main className="relative z-10 container mx-auto px-4 pt-12 pb-20">
