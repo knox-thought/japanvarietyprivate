@@ -325,11 +325,49 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
     return 'อิสระ / ไม่ใช้บริการรถ';
   };
 
+  // Check if a day has car service (not NONE)
+  const dayHasCarService = (day: DayConfig) => {
+    return day.services.some(s => s.serviceType !== ServiceType.NONE);
+  };
+
+  // Toggle car service for a day
+  const toggleDayCarService = (date: string, enabled: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      days: prev.days.map(d => {
+        if (d.date !== date) return d;
+        
+        if (enabled) {
+          // Enable: set first service to CHARTER
+          return {
+            ...d,
+            services: [{
+              id: d.services[0]?.id || generateId(),
+              serviceType: ServiceType.CHARTER
+            }]
+          };
+        } else {
+          // Disable: set to NONE
+          return {
+            ...d,
+            services: [{
+              id: d.services[0]?.id || generateId(),
+              serviceType: ServiceType.NONE
+            }]
+          };
+        }
+      })
+    }));
+  };
+
+  // Get days that need car service
+  const daysWithCarService = formData.days.filter(dayHasCarService);
+
   const renderDateStep = () => (
     <div className="space-y-6 animate-fadeIn">
        <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900 font-serif">วางแผนการใช้รถ</h2>
-        <p className="text-gray-500">เลือกช่วงวันที่ทริป แล้วกำหนดบริการที่ต้องการในแต่ละวัน</p>
+        <p className="text-gray-500">เลือกช่วงวันที่ทริป แล้วติ๊กเลือกวันที่ต้องการใช้รถ</p>
       </div>
       
       {/* Date Range Calendar */}
@@ -339,28 +377,73 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
         onChange={(start, end) => setFormData({...formData, startDate: start, endDate: end})}
       />
 
-      {/* Service Selection List */}
-      <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-        {formData.days.map((day, idx) => (
-          <div key={day.date} className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden">
-            {/* Day Header */}
-            <div className="flex items-center gap-3 p-4 bg-gray-50 border-b border-gray-200">
-              <div className="bg-gray-900 text-amber-400 font-serif font-bold w-10 h-10 rounded-sm flex items-center justify-center text-lg shadow-md">
-                {idx + 1}
+      {/* Day Selection Grid */}
+      {formData.days.length > 0 && (
+        <div className="bg-white rounded-sm border border-gray-200 p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-gray-800 text-sm">เลือกวันที่ต้องการใช้รถ</h3>
+            <span className="text-xs text-gray-500">
+              เลือกแล้ว {daysWithCarService.length} / {formData.days.length} วัน
+            </span>
+          </div>
+          <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+            {formData.days.map((day, idx) => {
+              const hasService = dayHasCarService(day);
+              const dayDate = new Date(day.date);
+              const dayName = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'][dayDate.getDay()];
+              
+              return (
+                <button
+                  key={day.date}
+                  onClick={() => toggleDayCarService(day.date, !hasService)}
+                  className={clsx(
+                    "relative p-2 rounded-sm border-2 transition-all text-center",
+                    hasService 
+                      ? "border-amber-400 bg-amber-50 text-amber-800" 
+                      : "border-gray-200 bg-gray-50 text-gray-400 hover:border-gray-300"
+                  )}
+                >
+                  <div className="text-[10px] font-medium">{dayName}</div>
+                  <div className="text-lg font-bold">{dayDate.getDate()}</div>
+                  <div className="text-[10px]">Day {idx + 1}</div>
+                  {hasService && (
+                    <div className="absolute top-1 right-1">
+                      <Check className="w-3 h-3 text-amber-500" />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Service Details for Selected Days */}
+      {daysWithCarService.length > 0 && (
+        <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+          <h3 className="font-bold text-gray-800 text-sm sticky top-0 bg-white py-2 z-10 border-b border-gray-100">
+            รายละเอียดบริการ ({daysWithCarService.length} วัน)
+          </h3>
+          {daysWithCarService.map((day, idx) => (
+            <div key={day.date} className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden">
+              {/* Day Header */}
+              <div className="flex items-center gap-3 p-4 bg-gray-50 border-b border-gray-200">
+                <div className="bg-gray-900 text-amber-400 font-serif font-bold w-10 h-10 rounded-sm flex items-center justify-center text-lg shadow-md">
+                  {formData.days.findIndex(d => d.date === day.date) + 1}
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-gray-900">{formatDate(day.date)}</p>
+                  <p className="text-xs text-gray-500">
+                    {day.services.length} บริการ
+                  </p>
+                </div>
+                <button
+                  onClick={() => addServiceToDay(day.date)}
+                  className="flex items-center gap-1 text-xs px-3 py-1.5 bg-amber-500 text-white rounded-sm hover:bg-amber-600 transition-colors font-medium"
+                >
+                  <Plus className="w-3 h-3" /> เพิ่มบริการ
+                </button>
               </div>
-              <div className="flex-1">
-                <p className="font-bold text-gray-900">{formatDate(day.date)}</p>
-                <p className="text-xs text-gray-500">
-                  {day.services.length} บริการ
-                </p>
-              </div>
-              <button
-                onClick={() => addServiceToDay(day.date)}
-                className="flex items-center gap-1 text-xs px-3 py-1.5 bg-amber-500 text-white rounded-sm hover:bg-amber-600 transition-colors font-medium"
-              >
-                <Plus className="w-3 h-3" /> เพิ่มบริการ
-              </button>
-            </div>
 
             {/* Services List */}
             <div className="divide-y divide-gray-100">
@@ -590,7 +673,8 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
             </div>
           </div>
         ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 
