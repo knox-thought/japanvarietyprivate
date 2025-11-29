@@ -17,6 +17,7 @@ export default defineConfig(({ mode }) => {
       plugins: [react()],
       // Remove API key from frontend - it's now handled by backend API
       // API key should only exist in server environment variables
+      publicDir: 'public',
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
@@ -26,6 +27,10 @@ export default defineConfig(({ mode }) => {
         minify: 'esbuild',
         sourcemap: !isProduction,
         rollupOptions: {
+          input: {
+            main: path.resolve(__dirname, 'index.html'),
+            admin: path.resolve(__dirname, 'admin.html'),
+          },
           output: {
             manualChunks: {
               vendor: ['react', 'react-dom'],
