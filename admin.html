@@ -1045,6 +1045,48 @@
     </div>
   </div>
 
+  <!-- Car Booking Preview Modal (AI Generated) -->
+  <div class="modal-overlay" id="car-booking-preview-modal">
+    <div class="modal" style="max-width:800px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🤖 AI สร้างรายการรถ - ตรวจสอบก่อนบันทึก</h3>
+        <button class="modal-close" onclick="closeModal('car-booking-preview-modal')">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height:60vh;overflow-y:auto;">
+        <div id="car-booking-preview-loading" style="text-align:center;padding:40px;">
+          <div class="spinner"></div>
+          <p style="margin-top:16px;color:var(--text-muted)">กำลังวิเคราะห์ Quotation ด้วย AI...</p>
+        </div>
+        <div id="car-booking-preview-error" style="display:none;text-align:center;padding:40px;color:var(--danger);">
+          <p>❌ <span id="car-booking-preview-error-msg"></span></p>
+        </div>
+        <div id="car-booking-preview-content" style="display:none;">
+          <p style="margin-bottom:16px;color:var(--text-muted)">ตรวจสอบรายการด้านล่าง แก้ไขได้ถ้าต้องการ แล้วกดบันทึก</p>
+          <table style="width:100%;">
+            <thead>
+              <tr>
+                <th>วันที่</th>
+                <th>ประเภท</th>
+                <th>เวลา</th>
+                <th>รับ</th>
+                <th>ส่ง</th>
+                <th>รถ</th>
+                <th>ลบ</th>
+              </tr>
+            </thead>
+            <tbody id="car-booking-preview-table"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('car-booking-preview-modal')">ยกเลิก</button>
+        <button type="button" class="btn btn-primary" id="save-generated-car-bookings" onclick="saveGeneratedCarBookings()">
+          💾 บันทึกทั้งหมด
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Car Booking Modal -->
   <div class="modal-overlay" id="car-booking-modal">
     <div class="modal">
@@ -1358,6 +1400,7 @@
           <td>
             <button class="action-btn" onclick="editBooking(${b.id})">แก้ไข</button>
             <button class="action-btn" onclick="openPaymentModalForBooking(${b.id})">💰</button>
+            <button class="action-btn" onclick="generateCarBookings(${b.id})" title="AI สร้างรายการรถ">🚗</button>
             <button class="action-btn" onclick="deleteBooking(${b.id})">ลบ</button>
           </td>
         </tr>
@@ -1940,6 +1983,121 @@
         'cancelled': 'ยกเลิก'
       };
       return map[status] || status;
+    }
+
+    // AI Generate Car Bookings
+    let generatedCarBookings = [];
+    let generateForBookingId = null;
+
+    async function generateCarBookings(bookingId) {
+      generateForBookingId = bookingId;
+      generatedCarBookings = [];
+      
+      // Show modal with loading
+      document.getElementById('car-booking-preview-loading').style.display = 'block';
+      document.getElementById('car-booking-preview-error').style.display = 'none';
+      document.getElementById('car-booking-preview-content').style.display = 'none';
+      document.getElementById('car-booking-preview-modal').classList.add('active');
+      
+      try {
+        const response = await apiCall('/car-bookings/generate', 'POST', { booking_id: bookingId });
+        
+        document.getElementById('car-booking-preview-loading').style.display = 'none';
+        
+        if (!response.success) {
+          document.getElementById('car-booking-preview-error').style.display = 'block';
+          document.getElementById('car-booking-preview-error-msg').textContent = response.error || 'เกิดข้อผิดพลาด';
+          return;
+        }
+        
+        generatedCarBookings = response.data;
+        renderGeneratedCarBookings();
+        document.getElementById('car-booking-preview-content').style.display = 'block';
+        
+      } catch (err) {
+        document.getElementById('car-booking-preview-loading').style.display = 'none';
+        document.getElementById('car-booking-preview-error').style.display = 'block';
+        document.getElementById('car-booking-preview-error-msg').textContent = err.message || 'เกิดข้อผิดพลาด';
+      }
+    }
+
+    function renderGeneratedCarBookings() {
+      const tbody = document.getElementById('car-booking-preview-table');
+      
+      if (generatedCarBookings.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">ไม่พบรายการ</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = generatedCarBookings.map((cb, idx) => `
+        <tr data-idx="${idx}">
+          <td><input type="date" class="form-input" value="${cb.service_date || ''}" onchange="updateGeneratedCB(${idx}, 'service_date', this.value)" style="width:130px;"></td>
+          <td>
+            <select class="form-input" onchange="updateGeneratedCB(${idx}, 'service_type', this.value)" style="width:100px;">
+              <option value="Charter" ${cb.service_type === 'Charter' ? 'selected' : ''}>Charter</option>
+              <option value="Transfer" ${cb.service_type === 'Transfer' ? 'selected' : ''}>Transfer</option>
+              <option value="Disposal" ${cb.service_type === 'Disposal' ? 'selected' : ''}>Disposal</option>
+            </select>
+          </td>
+          <td><input type="time" class="form-input" value="${cb.pickup_time || ''}" onchange="updateGeneratedCB(${idx}, 'pickup_time', this.value)" style="width:90px;"></td>
+          <td><input type="text" class="form-input" value="${cb.pickup_location || ''}" onchange="updateGeneratedCB(${idx}, 'pickup_location', this.value)" style="width:120px;"></td>
+          <td><input type="text" class="form-input" value="${cb.dropoff_location || ''}" onchange="updateGeneratedCB(${idx}, 'dropoff_location', this.value)" style="width:120px;"></td>
+          <td>
+            <select class="form-input" onchange="updateGeneratedCB(${idx}, 'vehicle_type', this.value)" style="width:90px;">
+              <option value="" ${!cb.vehicle_type ? 'selected' : ''}>-</option>
+              <option value="Alphard" ${cb.vehicle_type === 'Alphard' ? 'selected' : ''}>Alphard</option>
+              <option value="Hiace" ${cb.vehicle_type === 'Hiace' ? 'selected' : ''}>Hiace</option>
+              <option value="Coaster" ${cb.vehicle_type === 'Coaster' ? 'selected' : ''}>Coaster</option>
+            </select>
+          </td>
+          <td><button class="action-btn" onclick="removeGeneratedCB(${idx})" style="color:var(--danger)">✕</button></td>
+        </tr>
+      `).join('');
+    }
+
+    function updateGeneratedCB(idx, field, value) {
+      if (generatedCarBookings[idx]) {
+        generatedCarBookings[idx][field] = value;
+      }
+    }
+
+    function removeGeneratedCB(idx) {
+      generatedCarBookings.splice(idx, 1);
+      renderGeneratedCarBookings();
+    }
+
+    async function saveGeneratedCarBookings() {
+      if (generatedCarBookings.length === 0) {
+        alert('ไม่มีรายการที่จะบันทึก');
+        return;
+      }
+      
+      const btn = document.getElementById('save-generated-car-bookings');
+      btn.disabled = true;
+      btn.textContent = 'กำลังบันทึก...';
+      
+      try {
+        const response = await apiCall('/car-bookings/bulk', 'POST', {
+          booking_id: generateForBookingId,
+          car_bookings: generatedCarBookings
+        });
+        
+        if (response.success) {
+          closeModal('car-booking-preview-modal');
+          alert(`✅ ${response.message}`);
+          // Refresh car bookings if on that section
+          if (document.getElementById('section-car-bookings').style.display !== 'none') {
+            loadCarBookings();
+          }
+        } else {
+          alert('❌ ' + (response.error || 'เกิดข้อผิดพลาด'));
+        }
+      } catch (err) {
+        alert('❌ ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '💾 บันทึกทั้งหมด';
+      }
     }
 
     // Utilities
