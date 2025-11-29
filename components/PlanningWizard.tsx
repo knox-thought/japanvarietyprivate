@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Region, TripPreferences, TravelerConfig, ServiceType, DayConfig, FlightInfo } from '../types';
-import { MapPin, Users, Briefcase, Calendar, Car, Baby, ArrowRight, Check } from './Icons';
+import { Region, TripPreferences, TravelerConfig, ServiceType, DayConfig, FlightInfo, ServiceEntry } from '../types';
+import { MapPin, Users, Briefcase, Calendar, Car, Baby, ArrowRight, Check, Plus, Trash } from './Icons';
 import clsx from 'clsx';
 
 interface PlanningWizardProps {
@@ -43,6 +43,9 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
     customIdeas: "",
   });
 
+  // Helper to generate unique ID
+  const generateId = () => Math.random().toString(36).substring(2, 9);
+
   // Re-calculate days array when start/end date changes
   useEffect(() => {
     const start = new Date(formData.startDate);
@@ -57,25 +60,32 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
         const existing = formData.days.find(day => day.date === dateString);
         
         // Auto-logic: First day default to Transfer (LANDING), Last day default to Transfer (TAKEOFF), middle days Charter
-        let defaultService = ServiceType.CHARTER;
+        let defaultServiceType = ServiceType.CHARTER;
         let defaultFlightInfo: FlightInfo | undefined = undefined;
         
         if (d.getTime() === start.getTime()) {
           // First day: Landing (arrival)
-          defaultService = ServiceType.TRANSFER;
+          defaultServiceType = ServiceType.TRANSFER;
           defaultFlightInfo = { type: 'LANDING', time: '12:00' };
         } else if (d.getTime() === end.getTime()) {
           // Last day: Takeoff (departure)
-          defaultService = ServiceType.TRANSFER;
+          defaultServiceType = ServiceType.TRANSFER;
           defaultFlightInfo = { type: 'TAKEOFF', time: '12:00' };
         }
 
-        // If keeping existing, ensure flightInfo is preserved
-        dayConfigs.push(existing || { 
-          date: dateString, 
-          serviceType: defaultService,
-          flightInfo: defaultFlightInfo
-        });
+        // Use existing or create new with services array
+        if (existing && existing.services && existing.services.length > 0) {
+          dayConfigs.push(existing);
+        } else {
+          dayConfigs.push({ 
+            date: dateString, 
+            services: [{
+              id: generateId(),
+              serviceType: defaultServiceType,
+              flightInfo: defaultFlightInfo
+            }]
+          });
+        }
       }
       setFormData(prev => ({ ...prev, days: dayConfigs }));
     }
@@ -102,43 +112,47 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
     });
   };
 
-  const updateDayService = (date: string, type: ServiceType) => {
+  // Update service type for a specific service entry
+  const updateServiceType = (date: string, serviceId: string, type: ServiceType) => {
     setFormData(prev => ({
       ...prev,
       days: prev.days.map(d => {
         if (d.date !== date) return d;
         
-        // If switching to TRANSFER and no flightInfo exists, create default one
-        // Check if it's the last day to set default to TAKEOFF
-        if (type === ServiceType.TRANSFER && !d.flightInfo) {
-          const isLastDay = d.date === formData.endDate;
-          const defaultType = isLastDay ? 'TAKEOFF' : 'LANDING';
-          return {
-            ...d,
-            serviceType: type,
-            flightInfo: { type: defaultType, time: '12:00' }
-          };
-        }
-        
-        // If switching away from TRANSFER, remove flightInfo
-        if (type !== ServiceType.TRANSFER) {
-          return {
-            ...d,
-            serviceType: type,
-            flightInfo: undefined
-          };
-        }
-        
-        // Keep existing flightInfo when staying as TRANSFER
         return {
           ...d,
-          serviceType: type
+          services: d.services.map(s => {
+            if (s.id !== serviceId) return s;
+            
+            // If switching to TRANSFER and no flightInfo exists, create default one
+            if (type === ServiceType.TRANSFER && !s.flightInfo) {
+              const isLastDay = d.date === formData.endDate;
+              const defaultType = isLastDay ? 'TAKEOFF' : 'LANDING';
+              return {
+                ...s,
+                serviceType: type,
+                flightInfo: { type: defaultType, time: '12:00' }
+              };
+            }
+            
+            // If switching away from TRANSFER, remove flightInfo
+            if (type !== ServiceType.TRANSFER) {
+              return {
+                ...s,
+                serviceType: type,
+                flightInfo: undefined
+              };
+            }
+            
+            return { ...s, serviceType: type };
+          })
         };
       })
     }));
   };
 
-  const updateFlightInfo = (date: string, field: keyof FlightInfo, value: string) => {
+  // Update flight info for a specific service entry
+  const updateServiceFlightInfo = (date: string, serviceId: string, field: keyof FlightInfo, value: string) => {
     setFormData(prev => {
       const isLastDay = date === prev.endDate;
       const defaultType = isLastDay ? 'TAKEOFF' : 'LANDING';
@@ -147,29 +161,92 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
         ...prev,
         days: prev.days.map(d => {
           if (d.date !== date) return d;
-          const currentFlight = d.flightInfo || { type: defaultType, time: '12:00' };
-          
-          // When changing flight type, clear the opposite fields
-          let updatedFlight = { ...currentFlight, [field]: value };
-          if (field === 'type') {
-            if (value === 'LANDING') {
-              // Clear TAKEOFF fields when switching to LANDING
-              delete updatedFlight.pickupLocation;
-              delete updatedFlight.departureAirport;
-            } else if (value === 'TAKEOFF') {
-              // Clear LANDING fields when switching to TAKEOFF
-              delete updatedFlight.airport;
-              delete updatedFlight.destination;
-            }
-          }
           
           return {
             ...d,
-            flightInfo: updatedFlight as FlightInfo
+            services: d.services.map(s => {
+              if (s.id !== serviceId) return s;
+              
+              const currentFlight = s.flightInfo || { type: defaultType, time: '12:00' };
+              let updatedFlight = { ...currentFlight, [field]: value };
+              
+              if (field === 'type') {
+                if (value === 'LANDING') {
+                  delete updatedFlight.pickupLocation;
+                  delete updatedFlight.departureAirport;
+                } else if (value === 'TAKEOFF') {
+                  delete updatedFlight.airport;
+                  delete updatedFlight.destination;
+                }
+              }
+              
+              return {
+                ...s,
+                flightInfo: updatedFlight as FlightInfo
+              };
+            })
           };
         })
       };
     });
+  };
+
+  // Update note for a specific service entry
+  const updateServiceNote = (date: string, serviceId: string, note: string) => {
+    setFormData(prev => ({
+      ...prev,
+      days: prev.days.map(d => {
+        if (d.date !== date) return d;
+        
+        return {
+          ...d,
+          services: d.services.map(s => {
+            if (s.id !== serviceId) return s;
+            return { ...s, note };
+          })
+        };
+      })
+    }));
+  };
+
+  // Add a new service to a day
+  const addServiceToDay = (date: string) => {
+    setFormData(prev => ({
+      ...prev,
+      days: prev.days.map(d => {
+        if (d.date !== date) return d;
+        
+        return {
+          ...d,
+          services: [
+            ...d.services,
+            {
+              id: generateId(),
+              serviceType: ServiceType.TRANSFER,
+              flightInfo: { type: 'LANDING', time: '12:00' }
+            }
+          ]
+        };
+      })
+    }));
+  };
+
+  // Remove a service from a day
+  const removeServiceFromDay = (date: string, serviceId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      days: prev.days.map(d => {
+        if (d.date !== date) return d;
+        
+        // Don't remove if it's the last service
+        if (d.services.length <= 1) return d;
+        
+        return {
+          ...d,
+          services: d.services.filter(s => s.id !== serviceId)
+        };
+      })
+    }));
   };
 
   const calculateAppointmentTime = (info?: FlightInfo) => {
@@ -238,11 +315,21 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
     </div>
   );
 
+  // Helper to get service label
+  const getServiceLabel = (service: ServiceEntry) => {
+    if (service.serviceType === ServiceType.CHARTER) return 'เที่ยวเต็มวัน (10 ชั่วโมง)';
+    if (service.serviceType === ServiceType.TRANSFER) {
+      const flightType = service.flightInfo?.type === 'TAKEOFF' ? 'ส่งสนามบิน' : 'รับสนามบิน';
+      return `รับ-ส่ง (${flightType})`;
+    }
+    return 'อิสระ / ไม่ใช้บริการรถ';
+  };
+
   const renderDateStep = () => (
     <div className="space-y-6 animate-fadeIn">
        <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900 font-serif">วางแผนการใช้รถ</h2>
-        <p className="text-gray-500">ระบุช่วงเวลาทริป และเลือกบริการที่ต้องการในแต่ละวัน</p>
+        <p className="text-gray-500">ระบุช่วงเวลาทริป และเลือกบริการที่ต้องการในแต่ละวัน (เพิ่มได้หลายบริการ)</p>
       </div>
       
       {/* Date Range Select */}
@@ -269,174 +356,216 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
       </div>
 
       {/* Service Selection List */}
-      <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+      <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
         {formData.days.map((day, idx) => (
-          <div key={day.date} className="bg-white p-4 rounded-sm border-l-4 border-l-gray-300 border-y border-r border-gray-100 shadow-sm flex flex-col gap-3 hover:border-l-amber-400 transition-colors">
-             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-               <div className="flex items-center gap-3">
-                  <div className="bg-gray-900 text-amber-400 font-serif font-bold w-12 h-12 rounded-sm flex items-center justify-center text-lg shadow-md">
-                    {idx + 1}
-                  </div>
-                  <div>
-                    <p className="font-bold text-gray-900">{formatDate(day.date)}</p>
-                    <p className="text-xs text-gray-500 font-medium">
-                      {day.serviceType === ServiceType.CHARTER && 'เที่ยวเต็มวัน (10 ชั่วโมง)'}
-                      {day.serviceType === ServiceType.TRANSFER && 'บริการรับ-ส่ง (Transfer Service)'}
-                      {day.serviceType === ServiceType.NONE && 'อิสระ / ไม่ใช้บริการรถ'}
-                    </p>
-                  </div>
-               </div>
+          <div key={day.date} className="bg-white rounded-sm border border-gray-200 shadow-sm overflow-hidden">
+            {/* Day Header */}
+            <div className="flex items-center gap-3 p-4 bg-gray-50 border-b border-gray-200">
+              <div className="bg-gray-900 text-amber-400 font-serif font-bold w-10 h-10 rounded-sm flex items-center justify-center text-lg shadow-md">
+                {idx + 1}
+              </div>
+              <div className="flex-1">
+                <p className="font-bold text-gray-900">{formatDate(day.date)}</p>
+                <p className="text-xs text-gray-500">
+                  {day.services.length} บริการ
+                </p>
+              </div>
+              <button
+                onClick={() => addServiceToDay(day.date)}
+                className="flex items-center gap-1 text-xs px-3 py-1.5 bg-amber-500 text-white rounded-sm hover:bg-amber-600 transition-colors font-medium"
+              >
+                <Plus className="w-3 h-3" /> เพิ่มบริการ
+              </button>
+            </div>
 
-               <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-sm self-start sm:self-auto w-full sm:w-auto">
-                  <button 
-                    onClick={() => updateDayService(day.date, ServiceType.NONE)}
-                    className={clsx("px-3 py-1.5 text-xs rounded-sm transition-all font-medium flex-1 sm:flex-none", day.serviceType === ServiceType.NONE ? "bg-white shadow text-gray-800" : "text-gray-400 hover:text-gray-600")}
-                  >
-                    ไม่ใช้
-                  </button>
-                  <button 
-                     onClick={() => updateDayService(day.date, ServiceType.TRANSFER)}
-                     className={clsx("px-3 py-1.5 text-xs rounded-sm transition-all font-medium flex-1 sm:flex-none", day.serviceType === ServiceType.TRANSFER ? "bg-gray-800 shadow text-white" : "text-gray-400 hover:text-gray-600")}
-                  >
-                    รับส่ง
-                  </button>
-                  <button 
-                     onClick={() => updateDayService(day.date, ServiceType.CHARTER)}
-                     className={clsx("px-3 py-1.5 text-xs rounded-sm transition-all font-medium flex-1 sm:flex-none", day.serviceType === ServiceType.CHARTER ? "bg-amber-500 shadow text-white" : "text-gray-400 hover:text-gray-600")}
-                  >
-                    เหมา 10ชม.
-                  </button>
-               </div>
-             </div>
-
-             {/* Flight Details for Transfer */}
-             {day.serviceType === ServiceType.TRANSFER && (
-               <div className="mt-2 pt-3 border-t border-dashed border-gray-200 bg-gray-50 p-3 rounded-sm space-y-3">
-                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-bold text-gray-600 block mb-1">ประเภทเที่ยวบิน</label>
-                      <select 
-                        className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full"
-                        value={day.flightInfo?.type || (day.date === formData.endDate ? 'TAKEOFF' : 'LANDING')}
-                        onChange={(e) => updateFlightInfo(day.date, 'type', e.target.value)}
-                      >
-                        <option value="LANDING">เที่ยวบินขาเข้า (Arrival)</option>
-                        <option value="TAKEOFF">เที่ยวบินขาออก (Departure)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-gray-600 block mb-1">เวลาไฟล์ท</label>
-                      <div className="flex items-center gap-1.5">
-                        <select
-                          className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white font-mono text-center flex-1 focus:border-amber-400 min-w-0"
-                          value={day.flightInfo?.time ? day.flightInfo.time.split(':')[0] || '00' : '00'}
-                          onChange={(e) => {
-                            const hours = e.target.value;
-                            const mins = day.flightInfo?.time ? day.flightInfo.time.split(':')[1] || '00' : '00';
-                            updateFlightInfo(day.date, 'time', `${hours}:${mins}`);
-                          }}
-                        >
-                          {Array.from({ length: 24 }, (_, i) => {
-                            const hour = i.toString().padStart(2, '0');
-                            return (
-                              <option key={hour} value={hour}>
-                                {hour}
-                              </option>
-                            );
-                          })}
-                        </select>
-                        <span className="text-gray-600 font-bold text-base">:</span>
-                        <select
-                          className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white font-mono text-center flex-1 focus:border-amber-400 min-w-0"
-                          value={day.flightInfo?.time ? day.flightInfo.time.split(':')[1] || '00' : '00'}
-                          onChange={(e) => {
-                            const mins = e.target.value;
-                            const hours = day.flightInfo?.time ? day.flightInfo.time.split(':')[0] || '00' : '00';
-                            updateFlightInfo(day.date, 'time', `${hours}:${mins}`);
-                          }}
-                        >
-                          {Array.from({ length: 60 }, (_, i) => {
-                            const minute = i.toString().padStart(2, '0');
-                            return (
-                              <option key={minute} value={minute}>
-                                {minute}
-                              </option>
-                            );
-                          })}
-                        </select>
+            {/* Services List */}
+            <div className="divide-y divide-gray-100">
+              {day.services.map((service, sIdx) => (
+                <div key={service.id} className="p-4 hover:bg-gray-50/50 transition-colors">
+                  <div className="flex flex-col gap-3">
+                    {/* Service Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded">#{sIdx + 1}</span>
+                        <span className="text-sm font-medium text-gray-700">{getServiceLabel(service)}</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-sm">
+                          <button 
+                            onClick={() => updateServiceType(day.date, service.id, ServiceType.NONE)}
+                            className={clsx("px-2.5 py-1 text-xs rounded-sm transition-all font-medium", service.serviceType === ServiceType.NONE ? "bg-white shadow text-gray-800" : "text-gray-400 hover:text-gray-600")}
+                          >
+                            ไม่ใช้
+                          </button>
+                          <button 
+                            onClick={() => updateServiceType(day.date, service.id, ServiceType.TRANSFER)}
+                            className={clsx("px-2.5 py-1 text-xs rounded-sm transition-all font-medium", service.serviceType === ServiceType.TRANSFER ? "bg-gray-800 shadow text-white" : "text-gray-400 hover:text-gray-600")}
+                          >
+                            รับส่ง
+                          </button>
+                          <button 
+                            onClick={() => updateServiceType(day.date, service.id, ServiceType.CHARTER)}
+                            className={clsx("px-2.5 py-1 text-xs rounded-sm transition-all font-medium", service.serviceType === ServiceType.CHARTER ? "bg-amber-500 shadow text-white" : "text-gray-400 hover:text-gray-600")}
+                          >
+                            เหมา 10ชม.
+                          </button>
+                        </div>
+                        
+                        {day.services.length > 1 && (
+                          <button
+                            onClick={() => removeServiceFromDay(day.date, service.id)}
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-sm transition-colors"
+                            title="ลบบริการนี้"
+                          >
+                            <Trash className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
-                 </div>
 
-                 {/* Flight Details Fields - Landing (Arrival) */}
-                 {day.flightInfo?.type === 'LANDING' && (
-                   <>
-                     <div>
-                       <label className="text-xs font-bold text-gray-600 block mb-1">
-                         สนามบินที่ลง <span className="text-gray-400 font-normal">(ไม่บังคับ)</span>
-                       </label>
-                       <input
-                         type="text"
-                         className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full focus:border-amber-400"
-                         placeholder="เช่น สนามบินนาริตะ (NRT), สนามบินฮาเนดะ (HND)"
-                         value={day.flightInfo?.airport || ''}
-                         onChange={(e) => updateFlightInfo(day.date, 'airport', e.target.value)}
-                       />
-                     </div>
-                     <div>
-                       <label className="text-xs font-bold text-gray-600 block mb-1">
-                         จุดหมายปลายทาง <span className="text-gray-400 font-normal">(ไม่บังคับ)</span>
-                       </label>
-                       <input
-                         type="text"
-                         className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full focus:border-amber-400"
-                         placeholder="เช่น โรงแรม ABC, Hotel XYZ, ที่อยู่"
-                         value={day.flightInfo?.destination || ''}
-                         onChange={(e) => updateFlightInfo(day.date, 'destination', e.target.value)}
-                       />
-                     </div>
-                   </>
-                 )}
+                    {/* Transfer Details */}
+                    {service.serviceType === ServiceType.TRANSFER && (
+                      <div className="bg-gray-50 p-3 rounded-sm space-y-3 border border-gray-100">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs font-bold text-gray-600 block mb-1">ประเภทเที่ยวบิน</label>
+                            <select 
+                              className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full"
+                              value={service.flightInfo?.type || (day.date === formData.endDate ? 'TAKEOFF' : 'LANDING')}
+                              onChange={(e) => updateServiceFlightInfo(day.date, service.id, 'type', e.target.value)}
+                            >
+                              <option value="LANDING">เที่ยวบินขาเข้า (Arrival)</option>
+                              <option value="TAKEOFF">เที่ยวบินขาออก (Departure)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-xs font-bold text-gray-600 block mb-1">เวลาไฟล์ท</label>
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white font-mono text-center flex-1 focus:border-amber-400 min-w-0"
+                                value={service.flightInfo?.time ? service.flightInfo.time.split(':')[0] || '00' : '00'}
+                                onChange={(e) => {
+                                  const hours = e.target.value;
+                                  const mins = service.flightInfo?.time ? service.flightInfo.time.split(':')[1] || '00' : '00';
+                                  updateServiceFlightInfo(day.date, service.id, 'time', `${hours}:${mins}`);
+                                }}
+                              >
+                                {Array.from({ length: 24 }, (_, i) => (
+                                  <option key={i} value={i.toString().padStart(2, '0')}>
+                                    {i.toString().padStart(2, '0')}
+                                  </option>
+                                ))}
+                              </select>
+                              <span className="text-gray-600 font-bold text-base">:</span>
+                              <select
+                                className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white font-mono text-center flex-1 focus:border-amber-400 min-w-0"
+                                value={service.flightInfo?.time ? service.flightInfo.time.split(':')[1] || '00' : '00'}
+                                onChange={(e) => {
+                                  const mins = e.target.value;
+                                  const hours = service.flightInfo?.time ? service.flightInfo.time.split(':')[0] || '00' : '00';
+                                  updateServiceFlightInfo(day.date, service.id, 'time', `${hours}:${mins}`);
+                                }}
+                              >
+                                {Array.from({ length: 60 }, (_, i) => (
+                                  <option key={i} value={i.toString().padStart(2, '0')}>
+                                    {i.toString().padStart(2, '0')}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
 
-                 {/* Flight Details Fields - Takeoff (Departure) */}
-                 {(day.flightInfo?.type === 'TAKEOFF' || (!day.flightInfo?.type && day.date === formData.endDate)) && (
-                   <>
-                     <div>
-                       <label className="text-xs font-bold text-gray-600 block mb-1">
-                         จุดรับ <span className="text-gray-400 font-normal">(ไม่บังคับ)</span>
-                       </label>
-                       <input
-                         type="text"
-                         className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full focus:border-amber-400"
-                         placeholder="เช่น โรงแรม ABC, Hotel XYZ, ที่อยู่"
-                         value={day.flightInfo?.pickupLocation || ''}
-                         onChange={(e) => updateFlightInfo(day.date, 'pickupLocation', e.target.value)}
-                       />
-                     </div>
-                     <div>
-                       <label className="text-xs font-bold text-gray-600 block mb-1">
-                         สนามบินที่ออก <span className="text-gray-400 font-normal">(ไม่บังคับ)</span>
-                       </label>
-                       <input
-                         type="text"
-                         className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full focus:border-amber-400"
-                         placeholder="เช่น สนามบินนาริตะ (NRT), สนามบินฮาเนดะ (HND)"
-                         value={day.flightInfo?.departureAirport || ''}
-                         onChange={(e) => updateFlightInfo(day.date, 'departureAirport', e.target.value)}
-                       />
-                     </div>
-                   </>
-                 )}
+                        {/* Landing Details */}
+                        {service.flightInfo?.type === 'LANDING' && (
+                          <>
+                            <div>
+                              <label className="text-xs font-bold text-gray-600 block mb-1">
+                                สนามบินที่ลง <span className="text-gray-400 font-normal">(ไม่บังคับ)</span>
+                              </label>
+                              <input
+                                type="text"
+                                className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full focus:border-amber-400"
+                                placeholder="เช่น สนามบินนาริตะ (NRT), สนามบินฮาเนดะ (HND)"
+                                value={service.flightInfo?.airport || ''}
+                                onChange={(e) => updateServiceFlightInfo(day.date, service.id, 'airport', e.target.value)}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs font-bold text-gray-600 block mb-1">
+                                จุดหมายปลายทาง <span className="text-gray-400 font-normal">(ไม่บังคับ)</span>
+                              </label>
+                              <input
+                                type="text"
+                                className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full focus:border-amber-400"
+                                placeholder="เช่น โรงแรม ABC, Hotel XYZ, ที่อยู่"
+                                value={service.flightInfo?.destination || ''}
+                                onChange={(e) => updateServiceFlightInfo(day.date, service.id, 'destination', e.target.value)}
+                              />
+                            </div>
+                          </>
+                        )}
 
-                 {day.flightInfo?.time && (
-                   <div className="pt-2 border-t border-dashed border-gray-300">
-                     <p className="text-xs font-bold text-amber-600 bg-white px-3 py-2 rounded-sm border border-amber-100 shadow-sm text-center">
-                       {calculateAppointmentTime(day.flightInfo)}
-                     </p>
-                   </div>
-                 )}
-               </div>
-             )}
+                        {/* Takeoff Details */}
+                        {(service.flightInfo?.type === 'TAKEOFF' || (!service.flightInfo?.type && day.date === formData.endDate)) && (
+                          <>
+                            <div>
+                              <label className="text-xs font-bold text-gray-600 block mb-1">
+                                จุดรับ <span className="text-gray-400 font-normal">(ไม่บังคับ)</span>
+                              </label>
+                              <input
+                                type="text"
+                                className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full focus:border-amber-400"
+                                placeholder="เช่น โรงแรม ABC, Hotel XYZ, ที่อยู่"
+                                value={service.flightInfo?.pickupLocation || ''}
+                                onChange={(e) => updateServiceFlightInfo(day.date, service.id, 'pickupLocation', e.target.value)}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs font-bold text-gray-600 block mb-1">
+                                สนามบินที่ออก <span className="text-gray-400 font-normal">(ไม่บังคับ)</span>
+                              </label>
+                              <input
+                                type="text"
+                                className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full focus:border-amber-400"
+                                placeholder="เช่น สนามบินนาริตะ (NRT), สนามบินฮาเนดะ (HND)"
+                                value={service.flightInfo?.departureAirport || ''}
+                                onChange={(e) => updateServiceFlightInfo(day.date, service.id, 'departureAirport', e.target.value)}
+                              />
+                            </div>
+                          </>
+                        )}
+
+                        {service.flightInfo?.time && (
+                          <div className="pt-2 border-t border-dashed border-gray-300">
+                            <p className="text-xs font-bold text-amber-600 bg-white px-3 py-2 rounded-sm border border-amber-100 shadow-sm text-center">
+                              {calculateAppointmentTime(service.flightInfo)}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Note field for all services */}
+                    {service.serviceType !== ServiceType.NONE && (
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 block mb-1">
+                          หมายเหตุ / บันทึกสำหรับ AI <span className="text-gray-400 font-normal">(ไม่บังคับ)</span>
+                        </label>
+                        <textarea
+                          className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full focus:border-amber-400 resize-none"
+                          rows={2}
+                          placeholder="เช่น รับจากสนามบินไปส่งโรงแรมก่อน แล้วช่วงเย็นไปรับไปดินเนอร์ที่..."
+                          value={service.note || ''}
+                          onChange={(e) => updateServiceNote(day.date, service.id, e.target.value)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         ))}
       </div>

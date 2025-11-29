@@ -25,9 +25,19 @@ export interface FlightInfo {
   departureAirport?: string; // ส่งสนามบินไหน
 }
 
+// Single service entry within a day
+export interface ServiceEntry {
+  id: string; // unique identifier
+  serviceType: ServiceType;
+  flightInfo?: FlightInfo;
+  note?: string; // description for AI to understand the plan
+}
+
 export interface DayConfig {
   date: string;
-  serviceType: ServiceType;
+  services: ServiceEntry[]; // Multiple services per day
+  // Legacy single service (deprecated but kept for backwards compatibility)
+  serviceType?: ServiceType;
   flightInfo?: FlightInfo;
 }
 

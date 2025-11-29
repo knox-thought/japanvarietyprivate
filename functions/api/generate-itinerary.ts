@@ -108,11 +108,69 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
     const totalPax = travelerConfig.adults + travelerConfig.children + travelerConfig.toddlers;
     const totalLuggage = travelerConfig.suitcasesLarge + travelerConfig.suitcasesSmall;
     
+    // Helper function to describe a single service
+    const describeService = (service: any, date: string, serviceIndex: number) => {
+      let desc = `Service #${serviceIndex + 1}: ${service.serviceType}`;
+      
+      if (service.serviceType === ServiceType.TRANSFER && service.flightInfo) {
+        if (service.flightInfo.type === 'LANDING') {
+           // Landing: Pickup is Landing Time + 1.5h
+           const [h, m] = service.flightInfo.time.split(':').map(Number);
+           const pickupH = h + 1 + Math.floor((m + 30)/60);
+           const pickupM = (m + 30) % 60;
+           desc += ` (FLIGHT LANDING at ${service.flightInfo.time}`;
+           if (service.flightInfo.airport) {
+             desc += `, Landing Airport: ${service.flightInfo.airport}`;
+           }
+           if (service.flightInfo.destination) {
+             desc += `, Drop-off Location: ${service.flightInfo.destination}`;
+           }
+           desc += `, Pickup Appointment at ${pickupH}:${pickupM.toString().padStart(2,'0')})`;
+        } else {
+           // Takeoff: Dropoff is Takeoff Time - 2h
+           const [h, m] = service.flightInfo.time.split(':').map(Number);
+           const isRedEye = h >= 0 && h < 4; // flights just after midnight
+           let dropoffH = h - 2;
+           let dropoffNote = '';
+           if (dropoffH < 0) {
+             dropoffH += 24;
+             dropoffNote = ' (previous calendar day)';
+           }
+           
+           desc += ` (FLIGHT TAKEOFF at ${service.flightInfo.time}${isRedEye ? ' (red-eye / just after midnight)' : ''}`;
+           if (service.flightInfo.pickupLocation) {
+             desc += `, Pickup Location: ${service.flightInfo.pickupLocation}`;
+           }
+           if (service.flightInfo.departureAirport) {
+             desc += `, Departure Airport: ${service.flightInfo.departureAirport}`;
+           }
+           desc += `, Must arrive airport by ${dropoffH.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}${dropoffNote})`;
+           
+           if (isRedEye) {
+             desc += ' IMPORTANT: This is a red-eye flight departing shortly after midnight. Treat this transfer as happening on the previous evening (previous calendar day) when planning the schedule.';
+           }
+        }
+      }
+      
+      // Add note if provided
+      if (service.note) {
+        desc += ` | User Note: "${service.note}"`;
+      }
+      
+      return desc;
+    };
+
     const daysConfigDescription = days.map(d => {
-      let desc = `Date: ${d.date}, Service Type: ${d.serviceType}`;
+      // Support new services array format
+      if (d.services && d.services.length > 0) {
+        const servicesDesc = d.services.map((s: any, idx: number) => describeService(s, d.date, idx)).join('\n    ');
+        return `Date: ${d.date} (${d.services.length} service(s))\n    ${servicesDesc}`;
+      }
+      
+      // Fallback for legacy single service format
+      let desc = `Date: ${d.date}, Service Type: ${d.serviceType || ServiceType.NONE}`;
       if (d.serviceType === ServiceType.TRANSFER && d.flightInfo) {
         if (d.flightInfo.type === 'LANDING') {
-           // Landing: Pickup is Landing Time + 1.5h
            const [h, m] = d.flightInfo.time.split(':').map(Number);
            const pickupH = h + 1 + Math.floor((m + 30)/60);
            const pickupM = (m + 30) % 60;
@@ -125,16 +183,14 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
            }
            desc += `, Pickup Appointment at ${pickupH}:${pickupM.toString().padStart(2,'0')})`;
         } else {
-           // Takeoff: Dropoff is Takeoff Time - 2h
            const [h, m] = d.flightInfo.time.split(':').map(Number);
-           const isRedEye = h >= 0 && h < 4; // flights just after midnight
+           const isRedEye = h >= 0 && h < 4;
            let dropoffH = h - 2;
            let dropoffNote = '';
            if (dropoffH < 0) {
              dropoffH += 24;
              dropoffNote = ' (previous calendar day)';
            }
-           
            desc += ` (FLIGHT TAKEOFF at ${d.flightInfo.time}${isRedEye ? ' (red-eye / just after midnight)' : ''}`;
            if (d.flightInfo.pickupLocation) {
              desc += `, Pickup Location: ${d.flightInfo.pickupLocation}`;
@@ -143,10 +199,6 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
              desc += `, Departure Airport: ${d.flightInfo.departureAirport}`;
            }
            desc += `, Must arrive airport by ${dropoffH.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}${dropoffNote})`;
-           
-           if (isRedEye) {
-             desc += ' IMPORTANT: This is a red-eye flight departing shortly after midnight. Treat this transfer as happening on the previous evening (previous calendar day) when planning the schedule.';
-           }
         }
       }
       return desc;
@@ -169,6 +221,9 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
         If Flight Takeoff info provided: Hotel -> Airport.
       - "${ServiceType.CHARTER}": Full 10-hour service. Plan a full day tour with multiple stops, lunch, and sightseeing.
       - "${ServiceType.NONE}": No car service. Suggest free time, walking, or public transport near their hotel.
+
+      IMPORTANT: A single day may have MULTIPLE services (e.g., morning Transfer + evening Transfer, or Transfer + Charter).
+      When a day has multiple services, plan activities that fit each service's time window and respect the user's notes for each service.
 
       Logistics:
       - Passengers: ${totalPax} (Adults: ${travelerConfig.adults}, Children: ${travelerConfig.children}, Toddlers: ${travelerConfig.toddlers}).
