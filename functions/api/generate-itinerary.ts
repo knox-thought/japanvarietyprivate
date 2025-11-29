@@ -131,15 +131,19 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
            }
            desc += `, Pickup Appointment at ${pickupH}:${pickupM.toString().padStart(2,'0')})`;
         } else {
-           // Takeoff: Dropoff is Takeoff Time - 2h
+           // Takeoff: Dropoff is Takeoff Time - 2.5h (must arrive 2.5 hours before flight)
            const [h, m] = service.flightInfo.time.split(':').map(Number);
            const isRedEye = h >= 0 && h < 4; // flights just after midnight
-           let dropoffH = h - 2;
+           
+           // Calculate 2.5 hours (150 minutes) before takeoff
+           let totalMins = h * 60 + m - 150;
            let dropoffNote = '';
-           if (dropoffH < 0) {
-             dropoffH += 24;
+           if (totalMins < 0) {
+             totalMins += 24 * 60;
              dropoffNote = ' (previous calendar day)';
            }
+           const dropoffH = Math.floor(totalMins / 60);
+           const dropoffM = totalMins % 60;
            
            desc += ` (FLIGHT TAKEOFF at ${service.flightInfo.time}${isRedEye ? ' (red-eye / just after midnight)' : ''}`;
            if (service.flightInfo.pickupLocation) {
@@ -148,7 +152,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
            if (service.flightInfo.departureAirport) {
              desc += `, Departure Airport: ${service.flightInfo.departureAirport}`;
            }
-           desc += `, Must arrive airport by ${dropoffH.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}${dropoffNote})`;
+           desc += `, Must arrive airport by ${dropoffH.toString().padStart(2,'0')}:${dropoffM.toString().padStart(2,'0')}${dropoffNote})`;
            
            if (isRedEye) {
              desc += ' IMPORTANT: This is a red-eye flight departing shortly after midnight. Treat this transfer as happening on the previous evening (previous calendar day) when planning the schedule.';
@@ -185,14 +189,20 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
            }
            desc += `, Pickup Appointment at ${pickupH}:${pickupM.toString().padStart(2,'0')})`;
         } else {
+           // Takeoff: must arrive 2.5 hours before flight
            const [h, m] = d.flightInfo.time.split(':').map(Number);
            const isRedEye = h >= 0 && h < 4;
-           let dropoffH = h - 2;
+           
+           // Calculate 2.5 hours (150 minutes) before takeoff
+           let totalMins = h * 60 + m - 150;
            let dropoffNote = '';
-           if (dropoffH < 0) {
-             dropoffH += 24;
+           if (totalMins < 0) {
+             totalMins += 24 * 60;
              dropoffNote = ' (previous calendar day)';
            }
+           const dropoffH = Math.floor(totalMins / 60);
+           const dropoffM = totalMins % 60;
+           
            desc += ` (FLIGHT TAKEOFF at ${d.flightInfo.time}${isRedEye ? ' (red-eye / just after midnight)' : ''}`;
            if (d.flightInfo.pickupLocation) {
              desc += `, Pickup Location: ${d.flightInfo.pickupLocation}`;
@@ -200,7 +210,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
            if (d.flightInfo.departureAirport) {
              desc += `, Departure Airport: ${d.flightInfo.departureAirport}`;
            }
-           desc += `, Must arrive airport by ${dropoffH.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}${dropoffNote})`;
+           desc += `, Must arrive airport by ${dropoffH.toString().padStart(2,'0')}:${dropoffM.toString().padStart(2,'0')}${dropoffNote})`;
         }
       }
       return desc;

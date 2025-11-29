@@ -247,13 +247,13 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
         note: '⏱️ รอได้ 90 นาที นับจากเวลา Landing (เกินมีค่าใช้จ่ายเพิ่ม)' 
       };
     } else {
-      // - 2 hours for airport drop-off
-      date.setHours(date.getHours() - 2);
+      // - 2.5 hours for airport drop-off (must arrive 2.5 hrs before takeoff)
+      date.setMinutes(date.getMinutes() - 150); // 2.5 hours = 150 minutes
       const h = date.getHours().toString().padStart(2, '0');
       const m = date.getMinutes().toString().padStart(2, '0');
       return { 
         time: `ถึงสนามบิน: ${h}:${m}`, 
-        note: '⏱️ รอได้ 30 นาที จากเวลานัด (เกินมีค่าใช้จ่ายเพิ่ม)' 
+        note: '⏱️ ต้องถึงก่อนบิน 2.5 ชม. / รอได้ 30 นาที จากเวลานัด' 
       };
     }
   };
