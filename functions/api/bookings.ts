@@ -33,7 +33,7 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
         b.id, b.booking_code, b.travel_start_date, b.travel_end_date,
         b.region, b.pax_adults, b.pax_children, b.pax_toddlers,
         b.total_price, b.currency, b.deposit_amount, b.deposit_paid_at,
-        b.full_paid_at, b.status, b.notes, b.created_at,
+        b.full_paid_at, b.status, b.route_quotation, b.notes, b.created_at,
         c.name as customer_name, c.phone as customer_phone, c.email as customer_email
       FROM bookings b
       LEFT JOIN customers c ON b.customer_id = c.id
@@ -69,6 +69,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
       currency?: string;
       deposit_amount?: number;
       status?: string;
+      route_quotation?: string;
       notes?: string;
     };
 
@@ -89,8 +90,8 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
         customer_id, booking_code, travel_start_date, travel_end_date,
         region, pax_adults, pax_children, pax_toddlers,
         luggage_large, luggage_small, total_price, currency,
-        deposit_amount, status, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        deposit_amount, status, route_quotation, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       body.customer_id,
       bookingCode,
@@ -106,6 +107,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
       body.currency || 'THB',
       body.deposit_amount || null,
       body.status || 'inquiry',
+      body.route_quotation || null,
       body.notes || null
     ).run();
 
