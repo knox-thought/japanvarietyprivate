@@ -34,7 +34,6 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
     days: [],
     travelerConfig: {
       adults: 2,
-      children: 0,
       toddlers: 0,
       suitcasesLarge: 1,
       suitcasesSmall: 1,
@@ -581,9 +580,8 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
 
       <div className="space-y-4">
         {[
-          { label: 'ผู้ใหญ่', sub: 'อายุ 13 ปีขึ้นไป', key: 'adults' as keyof TravelerConfig },
-          { label: 'เด็ก', sub: 'อายุ 6-12 ปี', key: 'children' as keyof TravelerConfig },
-          { label: 'เด็กเล็ก', sub: 'ต่ำกว่า 6 ขวบ (ต้องใช้คาร์ซีท)', key: 'toddlers' as keyof TravelerConfig, icon: <Baby className="w-5 h-5 text-amber-500" /> }
+          { label: 'ผู้ใหญ่', sub: 'อายุ 7 ปีขึ้นไป', key: 'adults' as keyof TravelerConfig },
+          { label: 'เด็กเล็ก', sub: 'อายุ 0-6 ขวบ (ต้องใช้คาร์ซีท)', key: 'toddlers' as keyof TravelerConfig, icon: <Baby className="w-5 h-5 text-amber-500" /> }
         ].map((item) => (
           <div key={item.key} className="flex items-center justify-between p-4 bg-white rounded-sm border-l-2 border-gray-200 shadow-sm hover:border-l-amber-400 transition-colors">
             <div className="flex items-center gap-3">

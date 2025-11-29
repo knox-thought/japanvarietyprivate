@@ -105,7 +105,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
     };
 
     const { region, days, travelerConfig, interests, startDate, endDate, customIdeas } = prefs;
-    const totalPax = travelerConfig.adults + travelerConfig.children + travelerConfig.toddlers;
+    const totalPax = travelerConfig.adults + travelerConfig.toddlers;
     const totalLuggage = travelerConfig.suitcasesLarge + travelerConfig.suitcasesSmall;
     
     // Helper function to describe a single service
@@ -226,9 +226,9 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
       When a day has multiple services, plan activities that fit each service's time window and respect the user's notes for each service.
 
       Logistics:
-      - Passengers: ${totalPax} (Adults: ${travelerConfig.adults}, Children: ${travelerConfig.children}, Toddlers: ${travelerConfig.toddlers}).
+      - Passengers: ${totalPax} total (${travelerConfig.adults} Adults, ${travelerConfig.toddlers} Children 0-6 years old).
       - Luggage: ${travelerConfig.suitcasesLarge} Large, ${travelerConfig.suitcasesSmall} Small.
-      ${travelerConfig.toddlers > 0 ? "- CRITICAL: Include child-friendly stops or ensure pace is suitable for young children (under 6)." : ""}
+      ${travelerConfig.toddlers > 0 ? `- IMPORTANT: There are ${travelerConfig.toddlers} children aged 0-6. Car seats are REQUIRED for all of them. Include child-friendly stops or ensure pace is suitable for young children.` : ""}
       
       Interests: ${interests.join(", ")}.
 
@@ -272,7 +272,8 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
       
       [Date DD/MM/YYYY]
       Service: [Charter (10 Hours) OR Transfer (Pickup Only)] [If Transfer: Pickup Time]
-      Pax: [Total Pax], Luggage: [Total Luggage]
+      Pax: ${travelerConfig.adults} Adults + ${travelerConfig.toddlers} Children (0-6 yrs)${travelerConfig.toddlers > 0 ? ` - NEED ${travelerConfig.toddlers} CAR SEAT(S)` : ''}
+      Luggage: [Total Luggage]
       Car: [Car Type Recommendation]
       Route: [Location A -> Location B -> Location C]
 

@@ -81,7 +81,7 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({ plan, prefs, onRes
            <div className="flex flex-col gap-2">
              <span className="text-gray-400 flex items-center gap-2 text-xs uppercase tracking-wider font-bold"><Users className="w-4 h-4 text-amber-500"/> ผู้เดินทาง</span>
             <span className="font-semibold text-gray-900">
-              {prefs.travelerConfig.adults + prefs.travelerConfig.children + prefs.travelerConfig.toddlers} ท่าน
+              {prefs.travelerConfig.adults + prefs.travelerConfig.toddlers} ท่าน
             </span>
           </div>
            <div className="flex flex-col gap-2">

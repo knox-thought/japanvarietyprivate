@@ -43,8 +43,7 @@ export interface DayConfig {
 
 export interface TravelerConfig {
   adults: number;
-  children: number; // Ages 6-12
-  toddlers: number; // Under 6
+  toddlers: number; // Ages 0-6 (requires car seat)
   suitcasesLarge: number;
   suitcasesSmall: number;
 }
