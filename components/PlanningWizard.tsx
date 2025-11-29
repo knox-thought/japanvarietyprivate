@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Region, TripPreferences, TravelerConfig, ServiceType, DayConfig, FlightInfo, ServiceEntry } from '../types';
+import { DateRangeCalendar } from './DateRangeCalendar';
 import { MapPin, Users, Briefcase, Calendar, Car, Baby, ArrowRight, Check, Plus, Trash } from './Icons';
 import clsx from 'clsx';
 
@@ -328,31 +329,15 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
     <div className="space-y-6 animate-fadeIn">
        <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900 font-serif">วางแผนการใช้รถ</h2>
-        <p className="text-gray-500">ระบุช่วงเวลาทริป และเลือกบริการที่ต้องการในแต่ละวัน (เพิ่มได้หลายบริการ)</p>
+        <p className="text-gray-500">เลือกช่วงวันที่ทริป แล้วกำหนดบริการที่ต้องการในแต่ละวัน</p>
       </div>
       
-      {/* Date Range Select */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <div className="flex-1">
-          <label className="block text-xs font-bold text-amber-600 uppercase mb-1">วันเริ่มทริป</label>
-          <input 
-            type="date" 
-            value={formData.startDate}
-            onChange={(e) => setFormData({...formData, startDate: e.target.value})}
-            className="w-full p-2.5 rounded-sm border border-gray-300 focus:border-amber-500 outline-none text-sm bg-gray-50"
-          />
-        </div>
-        <div className="flex-1">
-          <label className="block text-xs font-bold text-amber-600 uppercase mb-1">วันจบทริป</label>
-           <input 
-            type="date" 
-            min={formData.startDate}
-            value={formData.endDate}
-            onChange={(e) => setFormData({...formData, endDate: e.target.value})}
-            className="w-full p-2.5 rounded-sm border border-gray-300 focus:border-amber-500 outline-none text-sm bg-gray-50"
-          />
-        </div>
-      </div>
+      {/* Date Range Calendar */}
+      <DateRangeCalendar
+        startDate={formData.startDate}
+        endDate={formData.endDate}
+        onChange={(start, end) => setFormData({...formData, startDate: start, endDate: end})}
+      />
 
       {/* Service Selection List */}
       <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
