@@ -91,9 +91,15 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({ plan, prefs, onRes
         </div>
       </div>
 
-      {/* Timeline */}
+      {/* Timeline - Only show days that require car service */}
       <div className="space-y-8">
-        {plan.itinerary.map((day) => (
+        {plan.itinerary
+          .filter((day) => {
+            // Filter out days without car service
+            const isNoService = day.serviceType.includes('ไม่ใช้') || day.serviceType.includes('None');
+            return !isNoService;
+          })
+          .map((day) => (
           <div key={day.dayNumber} className="bg-white rounded-sm p-6 shadow-sm border border-gray-100 relative overflow-hidden">
             {/* Day Header */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-5 mb-8 pb-4 border-b border-gray-100">
