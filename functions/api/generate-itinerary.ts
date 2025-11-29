@@ -229,13 +229,19 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
 
       Definitions of Service Types:
       - "${ServiceType.TRANSFER}": Point-to-Point transfer only. 
-        If Flight Landing info provided: Pickup at airport -> Hotel.
-        If Flight Takeoff info provided: Hotel -> Airport.
+        If Flight Landing info provided: Pickup at airport -> Hotel. Pickup time = Landing time + 90 minutes.
+        If Flight Takeoff info provided: Hotel -> Airport. CRITICAL: Must arrive at airport EXACTLY 2.5 hours (150 minutes) BEFORE takeoff time.
+          Example: Flight at 11:25 means arrival at airport must be at 08:55 (11:25 minus 2:30).
+          The "Must arrive airport by" time in the daily config is the EXACT time to use in your itinerary.
       - "${ServiceType.CHARTER}": Full 10-hour service. Plan a full day tour with multiple stops, lunch, and sightseeing.
       - "${ServiceType.NONE}": No car service. Suggest free time, walking, or public transport near their hotel.
 
       IMPORTANT: A single day may have MULTIPLE services (e.g., morning Transfer + evening Transfer, or Transfer + Charter).
       When a day has multiple services, plan activities that fit each service's time window and respect the user's notes for each service.
+      
+      CRITICAL TIMING RULE FOR AIRPORT DROP-OFF:
+      When planning a Transfer to airport (Takeoff), you MUST use the exact "Must arrive airport by" time provided in the daily config.
+      Do NOT calculate your own time. Use the time given. This ensures guests arrive 2.5 hours before their flight.
 
       Logistics:
       - Passengers: ${totalPax} total (${travelerConfig.adults} Adults, ${travelerConfig.toddlers} Children 0-6 years old).
