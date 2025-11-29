@@ -64,13 +64,13 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
         let defaultFlightInfo: FlightInfo | undefined = undefined;
         
         if (d.getTime() === start.getTime()) {
-          // First day: Landing (arrival)
+          // First day: Landing (arrival) - no default time
           defaultServiceType = ServiceType.TRANSFER;
-          defaultFlightInfo = { type: 'LANDING', time: '12:00' };
+          defaultFlightInfo = { type: 'LANDING', time: '' };
         } else if (d.getTime() === end.getTime()) {
-          // Last day: Takeoff (departure)
+          // Last day: Takeoff (departure) - no default time
           defaultServiceType = ServiceType.TRANSFER;
-          defaultFlightInfo = { type: 'TAKEOFF', time: '12:00' };
+          defaultFlightInfo = { type: 'TAKEOFF', time: '' };
         }
 
         // Use existing or create new with services array
@@ -131,7 +131,7 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
               return {
                 ...s,
                 serviceType: type,
-                flightInfo: { type: defaultType, time: '12:00' }
+                flightInfo: { type: defaultType, time: '' }
               };
             }
             
@@ -167,7 +167,7 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
             services: d.services.map(s => {
               if (s.id !== serviceId) return s;
               
-              const currentFlight = s.flightInfo || { type: defaultType, time: '12:00' };
+              const currentFlight = s.flightInfo || { type: defaultType, time: '' };
               let updatedFlight = { ...currentFlight, [field]: value };
               
               if (field === 'type') {
@@ -205,7 +205,7 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
             {
               id: generateId(),
               serviceType: ServiceType.TRANSFER,
-              flightInfo: { type: 'LANDING', time: '12:00' }
+              flightInfo: { type: 'LANDING', time: '' }
             }
           ]
         };
@@ -517,13 +517,18 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
                             <div className="flex items-center gap-1.5">
                               <select
                                 className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white font-mono text-center flex-1 focus:border-amber-400 min-w-0"
-                                value={service.flightInfo?.time ? service.flightInfo.time.split(':')[0] || '00' : '00'}
+                                value={service.flightInfo?.time ? service.flightInfo.time.split(':')[0] : ''}
                                 onChange={(e) => {
                                   const hours = e.target.value;
+                                  if (!hours) {
+                                    updateServiceFlightInfo(day.date, service.id, 'time', '');
+                                    return;
+                                  }
                                   const mins = service.flightInfo?.time ? service.flightInfo.time.split(':')[1] || '00' : '00';
                                   updateServiceFlightInfo(day.date, service.id, 'time', `${hours}:${mins}`);
                                 }}
                               >
+                                <option value="">--</option>
                                 {Array.from({ length: 24 }, (_, i) => (
                                   <option key={i} value={i.toString().padStart(2, '0')}>
                                     {i.toString().padStart(2, '0')}
@@ -533,13 +538,17 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
                               <span className="text-gray-600 font-bold text-base">:</span>
                               <select
                                 className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white font-mono text-center flex-1 focus:border-amber-400 min-w-0"
-                                value={service.flightInfo?.time ? service.flightInfo.time.split(':')[1] || '00' : '00'}
+                                value={service.flightInfo?.time ? service.flightInfo.time.split(':')[1] : ''}
                                 onChange={(e) => {
                                   const mins = e.target.value;
                                   const hours = service.flightInfo?.time ? service.flightInfo.time.split(':')[0] || '00' : '00';
+                                  if (!hours || hours === '') {
+                                    return; // Don't set minutes if hours not set
+                                  }
                                   updateServiceFlightInfo(day.date, service.id, 'time', `${hours}:${mins}`);
                                 }}
                               >
+                                <option value="">--</option>
                                 {Array.from({ length: 60 }, (_, i) => (
                                   <option key={i} value={i.toString().padStart(2, '0')}>
                                     {i.toString().padStart(2, '0')}
@@ -610,16 +619,20 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
                           </>
                         )}
 
-                        {service.flightInfo?.time && (
-                          <div className="pt-2 border-t border-dashed border-gray-300 space-y-2">
-                            <p className="text-xs font-bold text-amber-600 bg-white px-3 py-2 rounded-sm border border-amber-100 shadow-sm text-center">
-                              {calculateAppointmentTime(service.flightInfo).time}
-                            </p>
-                            <p className="text-[10px] text-gray-500 text-center">
-                              {calculateAppointmentTime(service.flightInfo).note}
-                            </p>
-                          </div>
-                        )}
+                        <div className="pt-2 border-t border-dashed border-gray-300 space-y-2">
+                          <p className="text-xs font-bold text-amber-600 bg-white px-3 py-2 rounded-sm border border-amber-100 shadow-sm text-center">
+                            {service.flightInfo?.time 
+                              ? calculateAppointmentTime(service.flightInfo).time 
+                              : (service.flightInfo?.type === 'LANDING' ? 'เวลานัดรับ: ???' : 'ถึงสนามบิน: ???')
+                            }
+                          </p>
+                          <p className="text-[10px] text-gray-500 text-center">
+                            {service.flightInfo?.time 
+                              ? calculateAppointmentTime(service.flightInfo).note 
+                              : '⚠️ กรุณาระบุเวลาไฟล์ท หรือใส่ในช่องบันทึกช่วยจำ'
+                            }
+                          </p>
+                        </div>
                       </div>
                     )}
 
