@@ -251,6 +251,24 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
     }
   };
 
+  // Update charter start time for a specific service entry
+  const updateCharterStartTime = (date: string, serviceId: string, time: string) => {
+    setFormData(prev => ({
+      ...prev,
+      days: prev.days.map(d => {
+        if (d.date !== date) return d;
+        
+        return {
+          ...d,
+          services: d.services.map(s => {
+            if (s.id !== serviceId) return s;
+            return { ...s, charterStartTime: time };
+          })
+        };
+      })
+    }));
+  };
+
   const nextStep = () => setStep(prev => prev + 1);
   const prevStep = () => setStep(prev => prev - 1);
 
@@ -525,6 +543,59 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
                             </p>
                           </div>
                         )}
+                      </div>
+                    )}
+
+                    {/* Charter Time Picker */}
+                    {service.serviceType === ServiceType.CHARTER && (
+                      <div className="bg-amber-50 p-3 rounded-sm border border-amber-100">
+                        <div>
+                          <label className="text-xs font-bold text-gray-600 block mb-1">เวลานัดรถ</label>
+                          <div className="flex items-center gap-1.5">
+                            <select
+                              className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white font-mono text-center flex-1 focus:border-amber-400 min-w-0"
+                              value={service.charterStartTime ? service.charterStartTime.split(':')[0] : ''}
+                              onChange={(e) => {
+                                const hours = e.target.value;
+                                if (!hours) {
+                                  updateCharterStartTime(day.date, service.id, '');
+                                  return;
+                                }
+                                const mins = service.charterStartTime ? service.charterStartTime.split(':')[1] || '00' : '00';
+                                updateCharterStartTime(day.date, service.id, `${hours}:${mins}`);
+                              }}
+                            >
+                              <option value="">--</option>
+                              {Array.from({ length: 24 }, (_, i) => (
+                                <option key={i} value={i.toString().padStart(2, '0')}>
+                                  {i.toString().padStart(2, '0')}
+                                </option>
+                              ))}
+                            </select>
+                            <span className="text-gray-600 font-bold text-base">:</span>
+                            <select
+                              className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white font-mono text-center flex-1 focus:border-amber-400 min-w-0"
+                              value={service.charterStartTime ? service.charterStartTime.split(':')[1] : ''}
+                              onChange={(e) => {
+                                const mins = e.target.value;
+                                const hours = service.charterStartTime ? service.charterStartTime.split(':')[0] || '08' : '08';
+                                updateCharterStartTime(day.date, service.id, `${hours}:${mins}`);
+                              }}
+                            >
+                              <option value="">--</option>
+                              {Array.from({ length: 60 }, (_, i) => (
+                                <option key={i} value={i.toString().padStart(2, '0')}>
+                                  {i.toString().padStart(2, '0')}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-dashed border-amber-200">
+                          <p className="text-xs font-bold text-amber-600 bg-white px-3 py-2 rounded-sm border border-amber-100 shadow-sm text-center">
+                            เวลานัดรถ: {service.charterStartTime || '???'}
+                          </p>
+                        </div>
                       </div>
                     )}
 

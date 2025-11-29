@@ -112,7 +112,11 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
     const describeService = (service: any, date: string, serviceIndex: number) => {
       let desc = `Service #${serviceIndex + 1}: ${service.serviceType}`;
       
-      if (service.serviceType === ServiceType.TRANSFER && service.flightInfo) {
+      if (service.serviceType === ServiceType.CHARTER) {
+        // Charter service with start time
+        const startTime = service.charterStartTime || '???';
+        desc += ` (Start Time: ${startTime})`;
+      } else if (service.serviceType === ServiceType.TRANSFER && service.flightInfo) {
         if (service.flightInfo.type === 'LANDING') {
            // Landing: Pickup is Landing Time + 1.5h
            const [h, m] = service.flightInfo.time.split(':').map(Number);
@@ -150,6 +154,9 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
              desc += ' IMPORTANT: This is a red-eye flight departing shortly after midnight. Treat this transfer as happening on the previous evening (previous calendar day) when planning the schedule.';
            }
         }
+      } else if (service.serviceType === ServiceType.TRANSFER && !service.flightInfo) {
+        // Transfer without flight info
+        desc += ` (Pickup Time: ???)`;
       }
       
       return desc;
@@ -266,13 +273,15 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
       Structure for 'quotationForOperator' (Use this format for each service day):
       
       [Date DD/MM/YYYY]
-      Service: [Charter (10 Hours) OR Transfer (Pickup Only)] [If Transfer: Pickup Time]
+      Service: [Charter (10 Hours) Start: HH:MM] OR [Transfer (Pickup Only) Pickup: HH:MM]
+      - If no start/pickup time was specified, use "???" instead of the time
       Pax: ${travelerConfig.adults} Adults + ${travelerConfig.toddlers} Children (0-6 yrs)${travelerConfig.toddlers > 0 ? ` - NEED ${travelerConfig.toddlers} CAR SEAT(S)` : ''}
       Luggage: [Total Luggage]
       Car: [Car Type Recommendation]
       Route: [Location A -> Location B -> Location C]
 
       Repeat this block for every day requiring a car (Transfer or Charter). Do not include days with 'None' service.
+      If a day has multiple services, list each service on its own line with its time.
     `;
 
     const response = await ai.models.generateContent({

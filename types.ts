@@ -30,6 +30,7 @@ export interface ServiceEntry {
   id: string; // unique identifier
   serviceType: ServiceType;
   flightInfo?: FlightInfo;
+  charterStartTime?: string; // HH:mm for Charter service start time
 }
 
 export interface DayConfig {
