@@ -30,7 +30,6 @@ export interface ServiceEntry {
   id: string; // unique identifier
   serviceType: ServiceType;
   flightInfo?: FlightInfo;
-  note?: string; // description for AI to understand the plan
 }
 
 export interface DayConfig {

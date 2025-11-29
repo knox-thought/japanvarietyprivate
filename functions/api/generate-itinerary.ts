@@ -152,11 +152,6 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
         }
       }
       
-      // Add note if provided
-      if (service.note) {
-        desc += ` | User Note: "${service.note}"`;
-      }
-      
       return desc;
     };
 

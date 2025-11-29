@@ -190,24 +190,6 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
     });
   };
 
-  // Update note for a specific service entry
-  const updateServiceNote = (date: string, serviceId: string, note: string) => {
-    setFormData(prev => ({
-      ...prev,
-      days: prev.days.map(d => {
-        if (d.date !== date) return d;
-        
-        return {
-          ...d,
-          services: d.services.map(s => {
-            if (s.id !== serviceId) return s;
-            return { ...s, note };
-          })
-        };
-      })
-    }));
-  };
-
   // Add a new service to a day
   const addServiceToDay = (date: string) => {
     setFormData(prev => ({
@@ -546,21 +528,6 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
                       </div>
                     )}
 
-                    {/* Note field for all services */}
-                    {service.serviceType !== ServiceType.NONE && (
-                      <div>
-                        <label className="text-xs font-bold text-gray-600 block mb-1">
-                          หมายเหตุ / บันทึกสำหรับ AI <span className="text-gray-400 font-normal">(ไม่บังคับ)</span>
-                        </label>
-                        <textarea
-                          className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full focus:border-amber-400 resize-none"
-                          rows={2}
-                          placeholder="เช่น รับจากสนามบินไปส่งโรงแรมก่อน แล้วช่วงเย็นไปรับไปดินเนอร์ที่..."
-                          value={service.note || ''}
-                          onChange={(e) => updateServiceNote(day.date, service.id, e.target.value)}
-                        />
-                      </div>
-                    )}
                   </div>
                 </div>
               ))}
