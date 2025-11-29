@@ -25,21 +25,51 @@ const generateBookingCode = async (env: Env): Promise<string> => {
   return `JVS-${year}-${String(count).padStart(3, '0')}`;
 };
 
-// GET - List all bookings with customer info
+// GET - List all bookings with customer info and payment summary
 export const onRequestGet = async ({ env }: { env: Env }) => {
   try {
-    const { results } = await env.DB.prepare(`
+    // Get all bookings
+    const { results: bookings } = await env.DB.prepare(`
       SELECT 
         b.id, b.booking_code, b.travel_start_date, b.travel_end_date,
         b.region, b.pax_adults, b.pax_children, b.pax_toddlers,
         b.total_price, b.currency, b.deposit_amount, b.deposit_paid_at,
         b.full_paid_at, b.status, b.route_quotation, b.notes, b.created_at,
+        b.next_payment_due, b.next_payment_amount,
         c.name as customer_name, c.phone as customer_phone, c.email as customer_email
       FROM bookings b
       LEFT JOIN customers c ON b.customer_id = c.id
       WHERE b.deleted_at IS NULL
       ORDER BY b.travel_start_date DESC
     `).all();
+
+    // Get payment totals for each booking
+    const { results: paymentTotals } = await env.DB.prepare(`
+      SELECT 
+        booking_id,
+        SUM(CASE WHEN payment_type != 'refund' THEN amount ELSE -amount END) as total_paid
+      FROM payments
+      GROUP BY booking_id
+    `).all();
+
+    // Create a map of booking_id -> total_paid
+    const paymentMap = new Map();
+    for (const pt of paymentTotals) {
+      paymentMap.set((pt as any).booking_id, (pt as any).total_paid || 0);
+    }
+
+    // Add payment info to each booking
+    const results = bookings.map((b: any) => {
+      const totalPaid = paymentMap.get(b.id) || 0;
+      const totalPrice = b.total_price || 0;
+      const remaining = totalPrice - totalPaid;
+      return {
+        ...b,
+        total_paid: totalPaid,
+        remaining_amount: remaining > 0 ? remaining : 0,
+        is_fully_paid: remaining <= 0 && totalPrice > 0
+      };
+    });
 
     return new Response(JSON.stringify({ success: true, data: results }), {
       headers: { 'Content-Type': 'application/json', ...corsHeaders },

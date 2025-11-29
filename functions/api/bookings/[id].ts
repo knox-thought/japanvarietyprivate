@@ -76,7 +76,8 @@ export const onRequestPut = async ({ params, request, env }: { params: { id: str
       'customer_id', 'travel_start_date', 'travel_end_date', 'region',
       'pax_adults', 'pax_children', 'pax_toddlers', 'luggage_large', 'luggage_small',
       'total_price', 'currency', 'deposit_amount', 'deposit_paid_at',
-      'full_paid_at', 'status', 'route_quotation', 'notes'
+      'full_paid_at', 'status', 'route_quotation', 'notes',
+      'next_payment_due', 'next_payment_amount'
     ];
 
     const updates: string[] = [];

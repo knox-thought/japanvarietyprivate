@@ -625,15 +625,16 @@
                 <th>รหัสจอง</th>
                 <th>ลูกค้า</th>
                 <th>วันเดินทาง</th>
-                <th>โซน</th>
-                <th>จำนวนคน</th>
-                <th>สถานะ</th>
                 <th>ราคา</th>
+                <th>ชำระแล้ว</th>
+                <th>คงเหลือ</th>
+                <th>กำหนดชำระ</th>
+                <th>สถานะ</th>
                 <th>จัดการ</th>
               </tr>
             </thead>
             <tbody id="bookings-table">
-              <tr><td colspan="8" class="loading"><div class="spinner"></div> กำลังโหลด...</td></tr>
+              <tr><td colspan="9" class="loading"><div class="spinner"></div> กำลังโหลด...</td></tr>
             </tbody>
           </table>
         </div>
@@ -830,6 +831,16 @@
           <div class="form-group">
             <label class="form-label">Quotation / เส้นทาง (สำหรับ บ.รถ)</label>
             <textarea class="form-input" id="booking-quotation" rows="8" placeholder="วาง Quotation หรือรายละเอียดเส้นทางที่ส่งให้ บ.รถ ที่นี่..."></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">กำหนดชำระงวดถัดไป</label>
+              <input type="date" class="form-input" id="booking-next-due">
+            </div>
+            <div class="form-group">
+              <label class="form-label">ยอดงวดถัดไป</label>
+              <input type="number" class="form-input" id="booking-next-amount" min="0" placeholder="จำนวนเงิน">
+            </div>
           </div>
           <div class="form-group">
             <label class="form-label">หมายเหตุ</label>
@@ -1152,25 +1163,33 @@
       let filtered = filter === 'all' ? bookingsData : bookingsData.filter(b => b.status === filter);
       
       if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">ไม่มีการจอง</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">ไม่มีการจอง</td></tr>';
         return;
       }
       
-      tbody.innerHTML = filtered.map(b => `
+      tbody.innerHTML = filtered.map(b => {
+        const totalPrice = b.total_price || 0;
+        const totalPaid = b.total_paid || 0;
+        const remaining = b.remaining_amount || 0;
+        const isOverdue = b.next_payment_due && new Date(b.next_payment_due) < new Date();
+        
+        return `
         <tr>
           <td><strong>${b.booking_code}</strong></td>
           <td>${b.customer_name || '-'}</td>
           <td>${formatDate(b.travel_start_date)} - ${formatDate(b.travel_end_date)}</td>
-          <td>${b.region || '-'}</td>
-          <td>${b.pax_adults + b.pax_children} คน</td>
+          <td>${totalPrice ? formatCurrency(totalPrice) + ' ' + (b.currency || 'THB') : '-'}</td>
+          <td style="color:var(--success)">${totalPaid > 0 ? formatCurrency(totalPaid) : '-'}</td>
+          <td style="color:${remaining > 0 ? 'var(--warning)' : 'var(--success)'}">${remaining > 0 ? formatCurrency(remaining) : (totalPrice > 0 ? '✓ ครบ' : '-')}</td>
+          <td style="color:${isOverdue ? 'var(--danger)' : 'inherit'}">${b.next_payment_due ? formatDate(b.next_payment_due) + (b.next_payment_amount ? '<br><small>' + formatCurrency(b.next_payment_amount) + '</small>' : '') : '-'}</td>
           <td><span class="status-badge status-${b.status}">${getStatusText(b.status)}</span></td>
-          <td>${b.total_price ? formatCurrency(b.total_price) + ' ' + (b.currency || 'THB') : '-'}</td>
           <td>
             <button class="action-btn" onclick="editBooking(${b.id})">แก้ไข</button>
+            <button class="action-btn" onclick="openPaymentModalForBooking(${b.id})">💰</button>
             <button class="action-btn" onclick="deleteBooking(${b.id})">ลบ</button>
           </td>
         </tr>
-      `).join('');
+      `}).join('');
     }
 
     // Tab filtering
@@ -1204,8 +1223,23 @@
       document.getElementById('booking-price').value = booking?.total_price || '';
       document.getElementById('booking-status').value = booking?.status || 'inquiry';
       document.getElementById('booking-quotation').value = booking?.route_quotation || '';
+      document.getElementById('booking-next-due').value = booking?.next_payment_due || '';
+      document.getElementById('booking-next-amount').value = booking?.next_payment_amount || '';
       document.getElementById('booking-notes').value = booking?.notes || '';
       document.getElementById('booking-modal').classList.add('active');
+    }
+
+    // Open payment modal pre-filled for a booking
+    async function openPaymentModalForBooking(bookingId) {
+      const booking = bookingsData.find(b => b.id === bookingId);
+      if (booking) {
+        await openPaymentModal();
+        document.getElementById('payment-booking').value = bookingId;
+        // Pre-fill remaining amount if available
+        if (booking.remaining_amount > 0) {
+          document.getElementById('payment-amount').value = booking.remaining_amount;
+        }
+      }
     }
 
     function editBooking(id) {
@@ -1226,6 +1260,8 @@
         total_price: parseFloat(document.getElementById('booking-price').value) || null,
         status: document.getElementById('booking-status').value,
         route_quotation: document.getElementById('booking-quotation').value,
+        next_payment_due: document.getElementById('booking-next-due').value || null,
+        next_payment_amount: parseFloat(document.getElementById('booking-next-amount').value) || null,
         notes: document.getElementById('booking-notes').value
       };
       
