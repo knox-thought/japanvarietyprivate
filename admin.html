@@ -267,6 +267,10 @@
     .status-paid { background: rgba(34, 197, 94, 0.2); color: var(--success); }
     .status-completed { background: rgba(34, 197, 94, 0.3); color: var(--success); }
     .status-cancelled { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+    .status-deposit { background: rgba(59, 130, 246, 0.2); color: var(--info); }
+    .status-partial { background: rgba(245, 158, 11, 0.2); color: var(--accent); }
+    .status-full { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+    .status-refund { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
 
     .action-btn {
       padding: 6px 12px;
@@ -492,6 +496,10 @@
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
         บริษัทรถ
       </a>
+      <a href="#payments" class="nav-item" data-section="payments">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+        การชำระเงิน
+      </a>
     </nav>
 
     <a href="/" class="nav-item" style="margin-top: auto;">
@@ -659,6 +667,42 @@
             </thead>
             <tbody id="car-companies-table">
               <tr><td colspan="6" class="loading"><div class="spinner"></div> กำลังโหลด...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Payments Section -->
+    <section id="section-payments" class="section" style="display:none;">
+      <div class="header">
+        <h1 class="page-title">การชำระเงิน</h1>
+        <div class="header-actions">
+          <button class="btn btn-primary" onclick="openPaymentModal()">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            บันทึกการชำระเงิน
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>รหัสจอง</th>
+                <th>ลูกค้า</th>
+                <th>ประเภท</th>
+                <th>จำนวนเงิน</th>
+                <th>วิธีชำระ</th>
+                <th>วันที่ชำระ</th>
+                <th>สลิป</th>
+                <th>สถานะ</th>
+                <th>จัดการ</th>
+              </tr>
+            </thead>
+            <tbody id="payments-table">
+              <tr><td colspan="9" class="loading"><div class="spinner"></div> กำลังโหลด...</td></tr>
             </tbody>
           </table>
         </div>
@@ -846,11 +890,91 @@
     </div>
   </div>
 
+  <!-- Payment Modal -->
+  <div class="modal-overlay" id="payment-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="payment-modal-title">บันทึกการชำระเงิน</h3>
+        <button class="modal-close" onclick="closeModal('payment-modal')">&times;</button>
+      </div>
+      <form id="payment-form" onsubmit="savePayment(event)">
+        <div class="modal-body">
+          <input type="hidden" id="payment-id">
+          <div class="form-group">
+            <label class="form-label">การจอง *</label>
+            <select class="form-input" id="payment-booking" required>
+              <option value="">-- เลือกการจอง --</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">ประเภทการชำระ *</label>
+              <select class="form-input" id="payment-type" required>
+                <option value="deposit">มัดจำ</option>
+                <option value="partial">ชำระบางส่วน</option>
+                <option value="full">ชำระเต็มจำนวน</option>
+                <option value="refund">คืนเงิน</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">จำนวนเงิน *</label>
+              <input type="number" class="form-input" id="payment-amount" min="0" step="0.01" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">สกุลเงิน</label>
+              <select class="form-input" id="payment-currency">
+                <option value="THB">THB (บาท)</option>
+                <option value="JPY">JPY (เยน)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">วิธีชำระ</label>
+              <select class="form-input" id="payment-method">
+                <option value="">-- เลือก --</option>
+                <option value="transfer">โอนเงิน</option>
+                <option value="cash">เงินสด</option>
+                <option value="credit">บัตรเครดิต</option>
+                <option value="promptpay">PromptPay</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">วันที่ชำระ</label>
+              <input type="date" class="form-input" id="payment-date">
+            </div>
+            <div class="form-group">
+              <label class="form-label">เลขอ้างอิง</label>
+              <input type="text" class="form-input" id="payment-reference" placeholder="เลขที่โอน/Ref">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">อัพโหลดสลิป</label>
+            <input type="file" class="form-input" id="payment-slip" accept="image/*,.pdf" onchange="previewSlip(this)">
+            <div id="slip-preview" style="margin-top:10px;"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">หมายเหตุ</label>
+            <textarea class="form-input" id="payment-notes" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('payment-modal')">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary" id="payment-submit-btn">บันทึก</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
     const API_BASE = '/api';
     let customersData = [];
     let bookingsData = [];
     let carCompaniesData = [];
+    let paymentsData = [];
+    let uploadedSlipUrl = null;
 
     // Navigation
     document.querySelectorAll('.nav-item[data-section]').forEach(item => {
@@ -873,6 +997,7 @@
       if (section === 'customers') loadCustomers();
       if (section === 'bookings') loadBookings();
       if (section === 'car-companies') loadCarCompanies();
+      if (section === 'payments') loadPayments();
     }
 
     // API Calls
@@ -1199,6 +1324,189 @@
       if (!confirm('ต้องการลบบริษัทรถนี้?')) return;
       // Note: Would need to add delete endpoint for car companies
       alert('ฟีเจอร์นี้ยังไม่พร้อมใช้งาน');
+    }
+
+    // Payments
+    async function loadPayments() {
+      try {
+        const data = await apiCall('/payments');
+        if (data.success) {
+          paymentsData = data.data;
+          renderPayments();
+        }
+      } catch (err) {
+        console.error('Error loading payments:', err);
+      }
+    }
+
+    function renderPayments() {
+      const tbody = document.getElementById('payments-table');
+      if (paymentsData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">ยังไม่มีการชำระเงิน</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = paymentsData.map(p => `
+        <tr>
+          <td><strong>${p.booking_code || '-'}</strong></td>
+          <td>${p.customer_name || '-'}</td>
+          <td><span class="status-badge status-${p.payment_type}">${getPaymentTypeText(p.payment_type)}</span></td>
+          <td>${formatCurrency(p.amount)} ${p.currency || 'THB'}</td>
+          <td>${getPaymentMethodText(p.payment_method)}</td>
+          <td>${formatDate(p.paid_at)}</td>
+          <td>${p.slip_url ? '<a href="' + p.slip_url + '" target="_blank" class="action-btn">ดูสลิป</a>' : '-'}</td>
+          <td>${p.verified_at ? '<span style="color:var(--success)">✓ ตรวจแล้ว</span>' : '<span style="color:var(--warning)">รอตรวจ</span>'}</td>
+          <td>
+            <button class="action-btn" onclick="verifyPayment(${p.id})">ตรวจสอบ</button>
+            <button class="action-btn" onclick="deletePayment(${p.id})">ลบ</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function openPaymentModal(payment = null) {
+      // Load bookings for dropdown
+      if (bookingsData.length === 0) {
+        const data = await apiCall('/bookings');
+        if (data.success) bookingsData = data.data;
+      }
+      
+      const select = document.getElementById('payment-booking');
+      select.innerHTML = '<option value="">-- เลือกการจอง --</option>' + 
+        bookingsData.map(b => `<option value="${b.id}">${b.booking_code} - ${b.customer_name || 'ไม่ระบุ'}</option>`).join('');
+      
+      document.getElementById('payment-modal-title').textContent = payment ? 'แก้ไขการชำระเงิน' : 'บันทึกการชำระเงิน';
+      document.getElementById('payment-id').value = payment?.id || '';
+      document.getElementById('payment-booking').value = payment?.booking_id || '';
+      document.getElementById('payment-type').value = payment?.payment_type || 'deposit';
+      document.getElementById('payment-amount').value = payment?.amount || '';
+      document.getElementById('payment-currency').value = payment?.currency || 'THB';
+      document.getElementById('payment-method').value = payment?.payment_method || '';
+      document.getElementById('payment-date').value = payment?.paid_at || new Date().toISOString().split('T')[0];
+      document.getElementById('payment-reference').value = payment?.reference_no || '';
+      document.getElementById('payment-notes').value = payment?.notes || '';
+      document.getElementById('slip-preview').innerHTML = payment?.slip_url ? 
+        `<img src="${payment.slip_url}" style="max-width:200px;max-height:150px;border-radius:8px;">` : '';
+      uploadedSlipUrl = payment?.slip_url || null;
+      
+      document.getElementById('payment-modal').classList.add('active');
+    }
+
+    function previewSlip(input) {
+      const preview = document.getElementById('slip-preview');
+      if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          preview.innerHTML = `<img src="${e.target.result}" style="max-width:200px;max-height:150px;border-radius:8px;">`;
+        };
+        reader.readAsDataURL(input.files[0]);
+      }
+    }
+
+    async function uploadSlip(file) {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder', 'slips');
+      
+      const res = await fetch(`${API_BASE}/upload`, {
+        method: 'POST',
+        body: formData
+      });
+      return res.json();
+    }
+
+    async function savePayment(e) {
+      e.preventDefault();
+      const submitBtn = document.getElementById('payment-submit-btn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'กำลังบันทึก...';
+      
+      try {
+        // Upload slip if selected
+        const slipInput = document.getElementById('payment-slip');
+        let slipUrl = uploadedSlipUrl;
+        
+        if (slipInput.files && slipInput.files[0]) {
+          const uploadResult = await uploadSlip(slipInput.files[0]);
+          if (uploadResult.success) {
+            slipUrl = uploadResult.url;
+          } else {
+            throw new Error('อัพโหลดสลิปไม่สำเร็จ: ' + uploadResult.error);
+          }
+        }
+        
+        const id = document.getElementById('payment-id').value;
+        const data = {
+          booking_id: parseInt(document.getElementById('payment-booking').value),
+          payment_type: document.getElementById('payment-type').value,
+          amount: parseFloat(document.getElementById('payment-amount').value),
+          currency: document.getElementById('payment-currency').value,
+          payment_method: document.getElementById('payment-method').value || null,
+          paid_at: document.getElementById('payment-date').value || null,
+          reference_no: document.getElementById('payment-reference').value || null,
+          slip_url: slipUrl,
+          notes: document.getElementById('payment-notes').value || null
+        };
+        
+        if (id) {
+          await apiCall(`/payments/${id}`, 'PUT', data);
+        } else {
+          await apiCall('/payments', 'POST', data);
+        }
+        
+        closeModal('payment-modal');
+        loadPayments();
+        // Reset form
+        document.getElementById('payment-slip').value = '';
+        uploadedSlipUrl = null;
+      } catch (err) {
+        alert('เกิดข้อผิดพลาด: ' + err.message);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'บันทึก';
+      }
+    }
+
+    async function verifyPayment(id) {
+      if (!confirm('ยืนยันว่าตรวจสอบการชำระเงินนี้แล้ว?')) return;
+      try {
+        await apiCall(`/payments/${id}`, 'PUT', {
+          verified_at: new Date().toISOString()
+        });
+        loadPayments();
+      } catch (err) {
+        alert('เกิดข้อผิดพลาด: ' + err.message);
+      }
+    }
+
+    async function deletePayment(id) {
+      if (!confirm('ต้องการลบการชำระเงินนี้?')) return;
+      try {
+        await apiCall(`/payments/${id}`, 'DELETE');
+        loadPayments();
+      } catch (err) {
+        alert('เกิดข้อผิดพลาด: ' + err.message);
+      }
+    }
+
+    function getPaymentTypeText(type) {
+      const map = {
+        'deposit': 'มัดจำ',
+        'partial': 'ชำระบางส่วน',
+        'full': 'ชำระเต็ม',
+        'refund': 'คืนเงิน'
+      };
+      return map[type] || type;
+    }
+
+    function getPaymentMethodText(method) {
+      const map = {
+        'transfer': 'โอนเงิน',
+        'cash': 'เงินสด',
+        'credit': 'บัตรเครดิต',
+        'promptpay': 'PromptPay'
+      };
+      return map[method] || method || '-';
     }
 
     // Utilities
