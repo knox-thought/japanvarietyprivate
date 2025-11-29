@@ -280,6 +280,12 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
       Car: [Car Type Recommendation]
       Route: [Location A -> Location B -> Location C]
 
+      WAITING TIME RULES (include in quotation):
+      - Charter (10 Hours): Service starts from pickup time
+      - Transfer (Airport Pickup/Landing): 90 min free waiting from flight landing time
+      - Transfer (Other): 30 min free waiting from appointment time
+      - Exceeding waiting time incurs additional charges
+
       Repeat this block for every day requiring a car (Transfer or Charter). Do not include days with 'None' service.
       If a day has multiple services, list each service on its own line with its time.
     `;

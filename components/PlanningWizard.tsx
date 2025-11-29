@@ -232,23 +232,29 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
   };
 
   const calculateAppointmentTime = (info?: FlightInfo) => {
-    if (!info || !info.time) return '';
+    if (!info || !info.time) return { time: '', note: '' };
     const [hours, mins] = info.time.split(':').map(Number);
     const date = new Date();
     date.setHours(hours, mins, 0);
 
     if (info.type === 'LANDING') {
-      // + 1.5 hours (90 mins)
+      // + 1.5 hours (90 mins) for airport pickup
       date.setMinutes(date.getMinutes() + 90);
       const h = date.getHours().toString().padStart(2, '0');
       const m = date.getMinutes().toString().padStart(2, '0');
-      return `เวลานัดรับ: ${h}:${m}`;
+      return { 
+        time: `เวลานัดรับ: ${h}:${m}`, 
+        note: '⏱️ รอได้ 90 นาที นับจากเวลา Landing (เกินมีค่าใช้จ่ายเพิ่ม)' 
+      };
     } else {
-      // - 2 hours
+      // - 2 hours for airport drop-off
       date.setHours(date.getHours() - 2);
       const h = date.getHours().toString().padStart(2, '0');
       const m = date.getMinutes().toString().padStart(2, '0');
-      return `ถึงสนามบิน: ${h}:${m}`;
+      return { 
+        time: `ถึงสนามบิน: ${h}:${m}`, 
+        note: '⏱️ รอได้ 30 นาที จากเวลานัด (เกินมีค่าใช้จ่ายเพิ่ม)' 
+      };
     }
   };
 
@@ -605,9 +611,12 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
                         )}
 
                         {service.flightInfo?.time && (
-                          <div className="pt-2 border-t border-dashed border-gray-300">
+                          <div className="pt-2 border-t border-dashed border-gray-300 space-y-2">
                             <p className="text-xs font-bold text-amber-600 bg-white px-3 py-2 rounded-sm border border-amber-100 shadow-sm text-center">
-                              {calculateAppointmentTime(service.flightInfo)}
+                              {calculateAppointmentTime(service.flightInfo).time}
+                            </p>
+                            <p className="text-[10px] text-gray-500 text-center">
+                              {calculateAppointmentTime(service.flightInfo).note}
                             </p>
                           </div>
                         )}
@@ -659,9 +668,12 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
                             </select>
                           </div>
                         </div>
-                        <div className="mt-2 pt-2 border-t border-dashed border-amber-200">
+                        <div className="mt-2 pt-2 border-t border-dashed border-amber-200 space-y-2">
                           <p className="text-xs font-bold text-amber-600 bg-white px-3 py-2 rounded-sm border border-amber-100 shadow-sm text-center">
                             เวลานัดรถ: {service.charterStartTime || '???'}
+                          </p>
+                          <p className="text-[10px] text-gray-500 text-center">
+                            ⏱️ บริการ 10 ชม. (เริ่มนับเมื่อรถออกจากจุดนัด)
                           </p>
                         </div>
                       </div>
