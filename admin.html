@@ -271,6 +271,13 @@
     .status-partial { background: rgba(245, 158, 11, 0.2); color: var(--accent); }
     .status-full { background: rgba(34, 197, 94, 0.2); color: var(--success); }
     .status-refund { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+    
+    /* Car booking status */
+    .status-charter { background: rgba(99, 102, 241, 0.2); color: #818cf8; }
+    .status-transfer { background: rgba(14, 165, 233, 0.2); color: #38bdf8; }
+    .status-disposal { background: rgba(168, 85, 247, 0.2); color: #c084fc; }
+    .status-pending { background: rgba(156, 163, 175, 0.2); color: #9ca3af; }
+    .status-quoted { background: rgba(245, 158, 11, 0.2); color: var(--accent); }
 
     .action-btn {
       padding: 6px 12px;
@@ -500,6 +507,10 @@
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
         การชำระเงิน
       </a>
+      <a href="#car-bookings" class="nav-item" data-section="car-bookings">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+        จองรถรายวัน
+      </a>
     </nav>
 
     <a href="/" class="nav-item" style="margin-top: auto;">
@@ -707,6 +718,61 @@
             </tbody>
           </table>
         </div>
+      </div>
+    </section>
+
+    <!-- Car Bookings Section -->
+    <section id="section-car-bookings" class="section" style="display:none;">
+      <div class="header">
+        <h1 class="page-title">จองรถรายวัน</h1>
+        <div class="header-actions">
+          <button class="btn btn-primary" onclick="openCarBookingModal()">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            เพิ่มรายการจองรถ
+          </button>
+        </div>
+      </div>
+
+      <!-- Filter by Booking -->
+      <div class="card" style="margin-bottom:20px;padding:16px;">
+        <div class="form-row" style="align-items:flex-end;">
+          <div class="form-group" style="margin-bottom:0;flex:1;">
+            <label class="form-label">กรองตาม Booking</label>
+            <select class="form-input" id="car-booking-filter" onchange="filterCarBookings()">
+              <option value="">-- แสดงทั้งหมด --</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary" onclick="loadCarBookings()">รีเฟรช</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>รหัสจอง</th>
+                <th>วันที่</th>
+                <th>ประเภท</th>
+                <th>รถ</th>
+                <th>เวลา/สถานที่</th>
+                <th>บริษัทรถ</th>
+                <th>ราคา</th>
+                <th>สถานะ</th>
+                <th>จัดการ</th>
+              </tr>
+            </thead>
+            <tbody id="car-bookings-table">
+              <tr><td colspan="9" class="loading"><div class="spinner"></div> กำลังโหลด...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Summary Card -->
+      <div class="card" style="margin-top:20px;padding:20px;" id="car-booking-summary" style="display:none;">
+        <h3 style="margin-bottom:12px;">สรุปค่ารถ</h3>
+        <div id="car-booking-summary-content"></div>
       </div>
     </section>
   </main>
@@ -979,6 +1045,111 @@
     </div>
   </div>
 
+  <!-- Car Booking Modal -->
+  <div class="modal-overlay" id="car-booking-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="car-booking-modal-title">เพิ่มรายการจองรถ</h3>
+        <button class="modal-close" onclick="closeModal('car-booking-modal')">&times;</button>
+      </div>
+      <form id="car-booking-form" onsubmit="saveCarBooking(event)">
+        <div class="modal-body">
+          <input type="hidden" id="car-booking-id">
+          <div class="form-group">
+            <label class="form-label">การจอง *</label>
+            <select class="form-input" id="car-booking-booking" required>
+              <option value="">-- เลือกการจอง --</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">วันที่ใช้บริการ *</label>
+              <input type="date" class="form-input" id="car-booking-date" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">ประเภทบริการ *</label>
+              <select class="form-input" id="car-booking-type" required>
+                <option value="Charter">Charter 10 ชม.</option>
+                <option value="Transfer">Transfer</option>
+                <option value="Disposal">Disposal</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">ประเภทรถ</label>
+              <select class="form-input" id="car-booking-vehicle">
+                <option value="">-- เลือก --</option>
+                <option value="Alphard">Toyota Alphard</option>
+                <option value="Hiace">Toyota Hiace Grand Cabin</option>
+                <option value="Coaster">Toyota Coaster</option>
+                <option value="Other">อื่นๆ</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">บริษัทรถ</label>
+              <select class="form-input" id="car-booking-company">
+                <option value="">-- เลือก --</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">เวลารับ</label>
+              <input type="time" class="form-input" id="car-booking-pickup-time">
+            </div>
+            <div class="form-group">
+              <label class="form-label">สถานที่รับ</label>
+              <input type="text" class="form-input" id="car-booking-pickup-loc" placeholder="เช่น Haneda Airport">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">สถานที่ส่ง</label>
+            <input type="text" class="form-input" id="car-booking-dropoff-loc" placeholder="เช่น Hotel in Shinjuku">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">ราคาเสนอ</label>
+              <input type="number" class="form-input" id="car-booking-quoted" min="0" placeholder="ราคาที่ บ.รถ เสนอ">
+            </div>
+            <div class="form-group">
+              <label class="form-label">ราคาตกลง</label>
+              <input type="number" class="form-input" id="car-booking-confirmed" min="0" placeholder="ราคาที่ตกลงกัน">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">ชื่อคนขับ</label>
+              <input type="text" class="form-input" id="car-booking-driver-name">
+            </div>
+            <div class="form-group">
+              <label class="form-label">เบอร์คนขับ</label>
+              <input type="text" class="form-input" id="car-booking-driver-phone">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">สถานะ</label>
+            <select class="form-input" id="car-booking-status">
+              <option value="pending">รอยืนยัน</option>
+              <option value="quoted">ได้ราคาแล้ว</option>
+              <option value="confirmed">ยืนยันแล้ว</option>
+              <option value="completed">เสร็จสิ้น</option>
+              <option value="cancelled">ยกเลิก</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">หมายเหตุ</label>
+            <textarea class="form-input" id="car-booking-notes" rows="2" placeholder="รายละเอียดเพิ่มเติม เช่น จุดแวะ, ของที่ต้องเตรียม"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('car-booking-modal')">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">บันทึก</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
     const API_BASE = '/api';
     let customersData = [];
@@ -1009,6 +1180,7 @@
       if (section === 'bookings') loadBookings();
       if (section === 'car-companies') loadCarCompanies();
       if (section === 'payments') loadPayments();
+      if (section === 'car-bookings') loadCarBookings();
     }
 
     // API Calls
@@ -1543,6 +1715,231 @@
         'promptpay': 'PromptPay'
       };
       return map[method] || method || '-';
+    }
+
+    // Car Bookings
+    let carBookingsData = [];
+    let carCompaniesData = [];
+
+    async function loadCarBookings() {
+      try {
+        // Load car companies if needed
+        if (carCompaniesData.length === 0) {
+          const compData = await apiCall('/car-companies');
+          if (compData.success) carCompaniesData = compData.data;
+        }
+        
+        const data = await apiCall('/car-bookings');
+        if (data.success) {
+          carBookingsData = data.data;
+          renderCarBookings();
+          updateCarBookingFilter();
+          updateCarBookingSummary();
+        }
+      } catch (err) {
+        console.error('Error loading car bookings:', err);
+        document.getElementById('car-bookings-table').innerHTML = 
+          '<tr><td colspan="9" class="empty-state">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>';
+      }
+    }
+
+    function updateCarBookingFilter() {
+      const select = document.getElementById('car-booking-filter');
+      const currentValue = select.value;
+      
+      // Get unique bookings
+      const uniqueBookings = [...new Map(carBookingsData.map(cb => [cb.booking_id, {
+        id: cb.booking_id,
+        code: cb.booking_code,
+        customer: cb.customer_name
+      }])).values()];
+      
+      select.innerHTML = '<option value="">-- แสดงทั้งหมด --</option>' +
+        uniqueBookings.map(b => `<option value="${b.id}">${b.code} - ${b.customer || 'ไม่ระบุ'}</option>`).join('');
+      
+      select.value = currentValue;
+    }
+
+    function filterCarBookings() {
+      renderCarBookings();
+      updateCarBookingSummary();
+    }
+
+    function renderCarBookings() {
+      const tbody = document.getElementById('car-bookings-table');
+      const filterValue = document.getElementById('car-booking-filter').value;
+      
+      let filtered = carBookingsData;
+      if (filterValue) {
+        filtered = carBookingsData.filter(cb => cb.booking_id == filterValue);
+      }
+      
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">ไม่มีรายการจองรถ</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = filtered.map(cb => `
+        <tr>
+          <td><strong>${cb.booking_code || '-'}</strong></td>
+          <td>${formatDate(cb.service_date)}</td>
+          <td><span class="status-badge status-${cb.service_type?.toLowerCase()}">${cb.service_type || '-'}</span></td>
+          <td>${cb.vehicle_type || '-'}</td>
+          <td>
+            ${cb.pickup_time ? '<strong>' + cb.pickup_time + '</strong><br>' : ''}
+            ${cb.pickup_location || '-'}
+            ${cb.dropoff_location ? ' → ' + cb.dropoff_location : ''}
+          </td>
+          <td>${cb.company_name || '-'}</td>
+          <td>
+            ${cb.confirmed_price ? '<strong>¥' + formatCurrency(cb.confirmed_price) + '</strong>' : 
+              (cb.quoted_price ? '¥' + formatCurrency(cb.quoted_price) + ' (ราคาเสนอ)' : '-')}
+          </td>
+          <td><span class="status-badge status-${cb.status}">${getCarBookingStatusText(cb.status)}</span></td>
+          <td>
+            <button class="action-btn" onclick="editCarBooking(${cb.id})">แก้ไข</button>
+            <button class="action-btn" onclick="deleteCarBooking(${cb.id})">ลบ</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function updateCarBookingSummary() {
+      const filterValue = document.getElementById('car-booking-filter').value;
+      const summaryCard = document.getElementById('car-booking-summary');
+      const summaryContent = document.getElementById('car-booking-summary-content');
+      
+      if (!filterValue) {
+        summaryCard.style.display = 'none';
+        return;
+      }
+      
+      const filtered = carBookingsData.filter(cb => cb.booking_id == filterValue);
+      const totalQuoted = filtered.reduce((sum, cb) => sum + (cb.quoted_price || 0), 0);
+      const totalConfirmed = filtered.reduce((sum, cb) => sum + (cb.confirmed_price || 0), 0);
+      const confirmedCount = filtered.filter(cb => cb.status === 'confirmed' || cb.status === 'completed').length;
+      
+      summaryCard.style.display = 'block';
+      summaryContent.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;">
+          <div>
+            <div style="font-size:12px;color:var(--text-muted)">จำนวนวัน</div>
+            <div style="font-size:24px;font-weight:600">${filtered.length}</div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--text-muted)">ยืนยันแล้ว</div>
+            <div style="font-size:24px;font-weight:600;color:var(--success)">${confirmedCount}/${filtered.length}</div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--text-muted)">ราคาเสนอรวม</div>
+            <div style="font-size:24px;font-weight:600">¥${formatCurrency(totalQuoted)}</div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--text-muted)">ราคาตกลงรวม</div>
+            <div style="font-size:24px;font-weight:600;color:var(--primary)">¥${formatCurrency(totalConfirmed)}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    async function openCarBookingModal(carBooking = null) {
+      // Load bookings for dropdown
+      if (bookingsData.length === 0) {
+        const data = await apiCall('/bookings');
+        if (data.success) bookingsData = data.data;
+      }
+      
+      // Load car companies for dropdown
+      if (carCompaniesData.length === 0) {
+        const data = await apiCall('/car-companies');
+        if (data.success) carCompaniesData = data.data;
+      }
+      
+      const bookingSelect = document.getElementById('car-booking-booking');
+      bookingSelect.innerHTML = '<option value="">-- เลือกการจอง --</option>' + 
+        bookingsData.map(b => `<option value="${b.id}">${b.booking_code} - ${b.customer_name || 'ไม่ระบุ'} (${formatDate(b.travel_start_date)})</option>`).join('');
+      
+      const companySelect = document.getElementById('car-booking-company');
+      companySelect.innerHTML = '<option value="">-- เลือก --</option>' + 
+        carCompaniesData.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+      
+      document.getElementById('car-booking-modal-title').textContent = carBooking ? 'แก้ไขรายการจองรถ' : 'เพิ่มรายการจองรถ';
+      document.getElementById('car-booking-id').value = carBooking?.id || '';
+      document.getElementById('car-booking-booking').value = carBooking?.booking_id || '';
+      document.getElementById('car-booking-date').value = carBooking?.service_date || '';
+      document.getElementById('car-booking-type').value = carBooking?.service_type || 'Charter';
+      document.getElementById('car-booking-vehicle').value = carBooking?.vehicle_type || '';
+      document.getElementById('car-booking-company').value = carBooking?.car_company_id || '';
+      document.getElementById('car-booking-pickup-time').value = carBooking?.pickup_time || '';
+      document.getElementById('car-booking-pickup-loc').value = carBooking?.pickup_location || '';
+      document.getElementById('car-booking-dropoff-loc').value = carBooking?.dropoff_location || '';
+      document.getElementById('car-booking-quoted').value = carBooking?.quoted_price || '';
+      document.getElementById('car-booking-confirmed').value = carBooking?.confirmed_price || '';
+      document.getElementById('car-booking-driver-name').value = carBooking?.driver_name || '';
+      document.getElementById('car-booking-driver-phone').value = carBooking?.driver_phone || '';
+      document.getElementById('car-booking-status').value = carBooking?.status || 'pending';
+      document.getElementById('car-booking-notes').value = carBooking?.notes || '';
+      
+      document.getElementById('car-booking-modal').classList.add('active');
+    }
+
+    function editCarBooking(id) {
+      const carBooking = carBookingsData.find(cb => cb.id === id);
+      if (carBooking) openCarBookingModal(carBooking);
+    }
+
+    async function saveCarBooking(e) {
+      e.preventDefault();
+      const id = document.getElementById('car-booking-id').value;
+      const data = {
+        booking_id: parseInt(document.getElementById('car-booking-booking').value),
+        service_date: document.getElementById('car-booking-date').value,
+        service_type: document.getElementById('car-booking-type').value,
+        vehicle_type: document.getElementById('car-booking-vehicle').value || null,
+        car_company_id: document.getElementById('car-booking-company').value ? parseInt(document.getElementById('car-booking-company').value) : null,
+        pickup_time: document.getElementById('car-booking-pickup-time').value || null,
+        pickup_location: document.getElementById('car-booking-pickup-loc').value || null,
+        dropoff_location: document.getElementById('car-booking-dropoff-loc').value || null,
+        quoted_price: document.getElementById('car-booking-quoted').value ? parseFloat(document.getElementById('car-booking-quoted').value) : null,
+        confirmed_price: document.getElementById('car-booking-confirmed').value ? parseFloat(document.getElementById('car-booking-confirmed').value) : null,
+        driver_name: document.getElementById('car-booking-driver-name').value || null,
+        driver_phone: document.getElementById('car-booking-driver-phone').value || null,
+        status: document.getElementById('car-booking-status').value,
+        notes: document.getElementById('car-booking-notes').value || null
+      };
+      
+      try {
+        if (id) {
+          await apiCall(`/car-bookings/${id}`, 'PUT', data);
+        } else {
+          await apiCall('/car-bookings', 'POST', data);
+        }
+        closeModal('car-booking-modal');
+        loadCarBookings();
+      } catch (err) {
+        alert('เกิดข้อผิดพลาด: ' + err.message);
+      }
+    }
+
+    async function deleteCarBooking(id) {
+      if (!confirm('ต้องการลบรายการจองรถนี้?')) return;
+      try {
+        await apiCall(`/car-bookings/${id}`, 'DELETE');
+        loadCarBookings();
+      } catch (err) {
+        alert('เกิดข้อผิดพลาด: ' + err.message);
+      }
+    }
+
+    function getCarBookingStatusText(status) {
+      const map = {
+        'pending': 'รอยืนยัน',
+        'quoted': 'ได้ราคาแล้ว',
+        'confirmed': 'ยืนยันแล้ว',
+        'completed': 'เสร็จสิ้น',
+        'cancelled': 'ยกเลิก'
+      };
+      return map[status] || status;
     }
 
     // Utilities
