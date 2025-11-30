@@ -114,11 +114,56 @@ Return valid JSON matching the schema.
 
     const parsed = JSON.parse(text);
 
+    // Function to normalize year in date string
+    const normalizeDate = (dateStr: string): string => {
+      if (!dateStr) return dateStr;
+      
+      // Try to parse the date
+      const parts = dateStr.split('-');
+      if (parts.length !== 3) return dateStr;
+      
+      let year = parseInt(parts[0]);
+      const month = parts[1];
+      const day = parts[2];
+      
+      // Fix year conversion
+      if (year >= 2500) {
+        // Buddhist Era 4-digit (e.g., 2569 -> 2026)
+        year = year - 543;
+      } else if (year >= 2050 && year < 2100) {
+        // AI mistakenly interpreted 69 as 2069 -> should be 2026
+        // 2069 means BE 2569 -> CE 2026
+        year = year - 43; // 2069 - 43 = 2026
+      } else if (year >= 100 && year < 200) {
+        // AI mistakenly interpreted 69 as year 69 -> should be 2026
+        // This handles cases like year = 69
+        if (year >= 50) {
+          year = 2500 + (year - 100) - 543 + 100; // Convert to CE
+          // Actually simpler: 69 means 2569 -> 2026
+          // So if year is between 50-99, add 1957
+        }
+      }
+      
+      // Handle 2-digit years that slipped through
+      if (year < 100) {
+        if (year >= 50) {
+          // Buddhist Era short form: 69 -> 2569 -> 2026
+          year = 2500 + year - 543;
+        } else {
+          // CE short form: 26 -> 2026
+          year = 2000 + year;
+        }
+      }
+      
+      return `${year}-${month}-${day}`;
+    };
+
     // Calculate selling prices (costPrice × markupMultiplier)
     const multiplier = markupMultiplier || 1.391;
     
     const processedDays = parsed.days.map((day: any) => ({
       ...day,
+      date: normalizeDate(day.date), // Fix year conversion (69 -> 2026, not 2069)
       costPrice: day.costPrice,
       sellingPrice: Math.ceil(day.costPrice * multiplier), // Round up to nearest yen
       currency: day.currency || '¥'
