@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import clsx from 'clsx';
+import { ImageUpload } from './ImageUpload';
 
 type TableName = 'customers' | 'car_companies' | 'bookings' | 'car_bookings' | 'itineraries' | 'payments' | 'notifications' | 'quotations' | 'users';
 
@@ -13,13 +14,14 @@ interface TableConfig {
 interface FieldConfig {
   name: string;
   label: string;
-  type: 'text' | 'number' | 'email' | 'tel' | 'date' | 'datetime' | 'textarea' | 'select' | 'relation' | 'readonly';
+  type: 'text' | 'number' | 'email' | 'tel' | 'date' | 'datetime' | 'textarea' | 'select' | 'relation' | 'readonly' | 'image';
   required?: boolean;
   options?: { value: string; label: string }[];
   placeholder?: string;
   relationTable?: string;
   relationLabelField?: string;
   hidden?: boolean; // Hide from form but show in table
+  uploadFolder?: string; // For image type
 }
 
 const formatNumber = (value: number | string, length = 2) => {
@@ -197,7 +199,7 @@ const TABLES: TableConfig[] = [
         { value: 'promptpay', label: '📱 PromptPay' },
         { value: 'cash', label: '💵 เงินสด' },
       ]},
-      { name: 'slip_url', label: 'URL สลิป', type: 'text', placeholder: 'https://...' },
+      { name: 'slip_url', label: 'สลิปการโอน', type: 'image', uploadFolder: 'payment-slips' },
       { name: 'reference_no', label: 'เลขอ้างอิง', type: 'text', placeholder: 'REF-xxx' },
       { name: 'paid_at', label: 'วันที่ชำระ', type: 'datetime' },
       { name: 'verified_at', label: 'วันที่ตรวจสอบ', type: 'datetime' },
@@ -294,6 +296,8 @@ export const DataManager: React.FC = () => {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [relatedData, setRelatedData] = useState<Record<string, any[]>>({});
+  const [detailItem, setDetailItem] = useState<any | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   const currentTable = TABLES.find(t => t.name === activeTable)!;
 
@@ -536,6 +540,16 @@ export const DataManager: React.FC = () => {
             required={field.required}
           />
         );
+      case 'image':
+        return (
+          <ImageUpload
+            value={value}
+            onChange={(url) => handleInputChange(field.name, url)}
+            folder={field.uploadFolder || 'uploads'}
+            label={field.label}
+            required={field.required}
+          />
+        );
       default:
         return (
           <input
@@ -566,7 +580,22 @@ export const DataManager: React.FC = () => {
       return `¥${Number(value).toLocaleString()}`;
     }
 
+    if (field.type === 'image') {
+      return value ? '🖼️ มีรูป' : '-';
+    }
+
     return value;
+  };
+
+  const openDetailView = async (item: any) => {
+    setDetailItem(item);
+    await fetchRelatedDataForTable();
+    setIsDetailOpen(true);
+  };
+
+  const closeDetailView = () => {
+    setIsDetailOpen(false);
+    setDetailItem(null);
   };
 
   return (
@@ -680,6 +709,16 @@ export const DataManager: React.FC = () => {
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">
                         <button
+                          onClick={() => openDetailView(item)}
+                          className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                          title="ดูรายละเอียด"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        </button>
+                        <button
                           onClick={() => openEditForm(item)}
                           className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           title="แก้ไข"
@@ -791,6 +830,146 @@ export const DataManager: React.FC = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detail View Modal */}
+      {isDetailOpen && detailItem && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20">
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-black/50 transition-opacity"
+              onClick={closeDetailView}
+            ></div>
+
+            {/* Modal */}
+            <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-4xl mx-auto z-10 animate-fadeIn">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-amber-50 to-gray-50">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <span>{currentTable.icon}</span>
+                    รายละเอียด{currentTable.label}
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">ID: #{detailItem.id}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      closeDetailView();
+                      openEditForm(detailItem);
+                    }}
+                    className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors text-sm"
+                  >
+                    แก้ไข
+                  </button>
+                  <button
+                    onClick={closeDetailView}
+                    className="p-2 text-gray-400 hover:text-gray-600 rounded-lg"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="px-6 py-6 max-h-[70vh] overflow-y-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {currentTable.fields.map(field => {
+                    const value = detailItem[field.name];
+                    const displayValue = formatCellValue(field, value);
+
+                    if (field.type === 'image' && value) {
+                      return (
+                        <div key={field.name} className="md:col-span-2">
+                          <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">
+                            {field.label}
+                          </label>
+                          <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                            <img
+                              src={value}
+                              alt={field.label}
+                              className="max-w-full h-auto rounded-lg shadow-md"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23ddd" width="400" height="300"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="18" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3Eไม่สามารถโหลดรูปภาพ%3C/text%3E%3C/svg%3E';
+                              }}
+                            />
+                            <a
+                              href={value}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-2 inline-block text-sm text-blue-600 hover:text-blue-800"
+                            >
+                              เปิดในแท็บใหม่ →
+                            </a>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    if (field.type === 'textarea' && value) {
+                      return (
+                        <div key={field.name} className="md:col-span-2">
+                          <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">
+                            {field.label}
+                          </label>
+                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 whitespace-pre-wrap text-sm text-gray-700">
+                            {value || '-'}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div key={field.name}>
+                        <label className="block text-sm font-bold text-gray-700 mb-1 uppercase tracking-wide">
+                          {field.label}
+                        </label>
+                        <div className="text-gray-900 font-medium">
+                          {displayValue}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Metadata */}
+                <div className="mt-8 pt-6 border-t border-gray-200">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    {detailItem.created_at && (
+                      <div>
+                        <span className="text-gray-500">สร้างเมื่อ:</span>
+                        <p className="text-gray-900 font-medium">
+                          {new Date(detailItem.created_at).toLocaleString('th-TH')}
+                        </p>
+                      </div>
+                    )}
+                    {detailItem.updated_at && (
+                      <div>
+                        <span className="text-gray-500">อัพเดทเมื่อ:</span>
+                        <p className="text-gray-900 font-medium">
+                          {new Date(detailItem.updated_at).toLocaleString('th-TH')}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+                <button
+                  onClick={closeDetailView}
+                  className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-colors"
+                >
+                  ปิด
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -78,13 +78,13 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
           dayConfigs.push(existing);
         } else {
           dayConfigs.push({ 
-            date: dateString, 
+          date: dateString, 
             services: [{
               id: generateId(),
               serviceType: defaultServiceType,
-              flightInfo: defaultFlightInfo
+          flightInfo: defaultFlightInfo
             }]
-          });
+        });
         }
       }
       setFormData(prev => ({ ...prev, days: dayConfigs }));
@@ -123,27 +123,27 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
           ...d,
           services: d.services.map(s => {
             if (s.id !== serviceId) return s;
-            
-            // If switching to TRANSFER and no flightInfo exists, create default one
+        
+        // If switching to TRANSFER and no flightInfo exists, create default one
             if (type === ServiceType.TRANSFER && !s.flightInfo) {
-              const isLastDay = d.date === formData.endDate;
-              const defaultType = isLastDay ? 'TAKEOFF' : 'LANDING';
-              return {
+          const isLastDay = d.date === formData.endDate;
+          const defaultType = isLastDay ? 'TAKEOFF' : 'LANDING';
+          return {
                 ...s,
-                serviceType: type,
+            serviceType: type,
                 flightInfo: { type: defaultType, time: '' }
-              };
-            }
-            
-            // If switching away from TRANSFER, remove flightInfo
-            if (type !== ServiceType.TRANSFER) {
-              return {
+          };
+        }
+        
+        // If switching away from TRANSFER, remove flightInfo
+        if (type !== ServiceType.TRANSFER) {
+          return {
                 ...s,
-                serviceType: type,
-                flightInfo: undefined
-              };
-            }
-            
+            serviceType: type,
+            flightInfo: undefined
+          };
+        }
+        
             return { ...s, serviceType: type };
           })
         };
@@ -168,21 +168,21 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
               if (s.id !== serviceId) return s;
               
               const currentFlight = s.flightInfo || { type: defaultType, time: '' };
-              let updatedFlight = { ...currentFlight, [field]: value };
+          let updatedFlight = { ...currentFlight, [field]: value };
               
-              if (field === 'type') {
-                if (value === 'LANDING') {
-                  delete updatedFlight.pickupLocation;
-                  delete updatedFlight.departureAirport;
-                } else if (value === 'TAKEOFF') {
-                  delete updatedFlight.airport;
-                  delete updatedFlight.destination;
-                }
-              }
-              
-              return {
+          if (field === 'type') {
+            if (value === 'LANDING') {
+              delete updatedFlight.pickupLocation;
+              delete updatedFlight.departureAirport;
+            } else if (value === 'TAKEOFF') {
+              delete updatedFlight.airport;
+              delete updatedFlight.destination;
+            }
+          }
+          
+          return {
                 ...s,
-                flightInfo: updatedFlight as FlightInfo
+            flightInfo: updatedFlight as FlightInfo
               };
             })
           };
@@ -420,7 +420,7 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
                 </button>
               );
             })}
-          </div>
+        </div>
         </div>
       )}
 
@@ -436,13 +436,13 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
               <div className="flex items-center gap-3 p-4 bg-gray-50 border-b border-gray-200">
                 <div className="bg-gray-900 text-amber-400 font-serif font-bold w-10 h-10 rounded-sm flex items-center justify-center text-lg shadow-md">
                   {formData.days.findIndex(d => d.date === day.date) + 1}
-                </div>
+                  </div>
                 <div className="flex-1">
-                  <p className="font-bold text-gray-900">{formatDate(day.date)}</p>
+                    <p className="font-bold text-gray-900">{formatDate(day.date)}</p>
                   <p className="text-xs text-gray-500">
                     {day.services.length} บริการ
-                  </p>
-                </div>
+                    </p>
+                  </div>
                 <button
                   onClick={() => addServiceToDay(day.date)}
                   className="flex items-center gap-1 text-xs px-3 py-1.5 bg-amber-500 text-white rounded-sm hover:bg-amber-600 transition-colors font-medium"
@@ -461,28 +461,28 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded">#{sIdx + 1}</span>
                         <span className="text-sm font-medium text-gray-700">{getServiceLabel(service)}</span>
-                      </div>
-                      
+               </div>
+
                       <div className="flex items-center gap-2">
                         <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-sm">
-                          <button 
+                  <button 
                             onClick={() => updateServiceType(day.date, service.id, ServiceType.NONE)}
                             className={clsx("px-2.5 py-1 text-xs rounded-sm transition-all font-medium", service.serviceType === ServiceType.NONE ? "bg-white shadow text-gray-800" : "text-gray-400 hover:text-gray-600")}
-                          >
-                            ไม่ใช้
-                          </button>
-                          <button 
+                  >
+                    ไม่ใช้
+                  </button>
+                  <button 
                             onClick={() => updateServiceType(day.date, service.id, ServiceType.TRANSFER)}
                             className={clsx("px-2.5 py-1 text-xs rounded-sm transition-all font-medium", service.serviceType === ServiceType.TRANSFER ? "bg-gray-800 shadow text-white" : "text-gray-400 hover:text-gray-600")}
-                          >
-                            รับส่ง
-                          </button>
-                          <button 
+                  >
+                    รับส่ง
+                  </button>
+                  <button 
                             onClick={() => updateServiceType(day.date, service.id, ServiceType.CHARTER)}
                             className={clsx("px-2.5 py-1 text-xs rounded-sm transition-all font-medium", service.serviceType === ServiceType.CHARTER ? "bg-amber-500 shadow text-white" : "text-gray-400 hover:text-gray-600")}
-                          >
-                            เหมา 10ชม.
-                          </button>
+                  >
+                    เหมา 10ชม.
+                  </button>
                         </div>
                         
                         {day.services.length > 1 && (
@@ -494,133 +494,133 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
                             <Trash className="w-4 h-4" />
                           </button>
                         )}
-                      </div>
-                    </div>
+               </div>
+             </div>
 
                     {/* Transfer Details */}
                     {service.serviceType === ServiceType.TRANSFER && (
                       <div className="bg-gray-50 p-3 rounded-sm space-y-3 border border-gray-100">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-xs font-bold text-gray-600 block mb-1">ประเภทเที่ยวบิน</label>
-                            <select 
-                              className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full"
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-bold text-gray-600 block mb-1">ประเภทเที่ยวบิน</label>
+                      <select 
+                        className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full"
                               value={service.flightInfo?.type || (day.date === formData.endDate ? 'TAKEOFF' : 'LANDING')}
                               onChange={(e) => updateServiceFlightInfo(day.date, service.id, 'type', e.target.value)}
-                            >
-                              <option value="LANDING">เที่ยวบินขาเข้า (Arrival)</option>
-                              <option value="TAKEOFF">เที่ยวบินขาออก (Departure)</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="text-xs font-bold text-gray-600 block mb-1">เวลาไฟล์ท</label>
-                            <div className="flex items-center gap-1.5">
-                              <select
-                                className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white font-mono text-center flex-1 focus:border-amber-400 min-w-0"
+                      >
+                        <option value="LANDING">เที่ยวบินขาเข้า (Arrival)</option>
+                        <option value="TAKEOFF">เที่ยวบินขาออก (Departure)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-gray-600 block mb-1">เวลาไฟล์ท</label>
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white font-mono text-center flex-1 focus:border-amber-400 min-w-0"
                                 value={service.flightInfo?.time ? service.flightInfo.time.split(':')[0] : ''}
-                                onChange={(e) => {
-                                  const hours = e.target.value;
+                          onChange={(e) => {
+                            const hours = e.target.value;
                                   if (!hours) {
                                     updateServiceFlightInfo(day.date, service.id, 'time', '');
                                     return;
                                   }
                                   const mins = service.flightInfo?.time ? service.flightInfo.time.split(':')[1] || '00' : '00';
                                   updateServiceFlightInfo(day.date, service.id, 'time', `${hours}:${mins}`);
-                                }}
-                              >
+                          }}
+                        >
                                 <option value="">--</option>
                                 {Array.from({ length: 24 }, (_, i) => (
                                   <option key={i} value={i.toString().padStart(2, '0')}>
                                     {i.toString().padStart(2, '0')}
-                                  </option>
+                              </option>
                                 ))}
-                              </select>
-                              <span className="text-gray-600 font-bold text-base">:</span>
-                              <select
-                                className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white font-mono text-center flex-1 focus:border-amber-400 min-w-0"
+                        </select>
+                        <span className="text-gray-600 font-bold text-base">:</span>
+                        <select
+                          className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white font-mono text-center flex-1 focus:border-amber-400 min-w-0"
                                 value={service.flightInfo?.time ? service.flightInfo.time.split(':')[1] : ''}
-                                onChange={(e) => {
-                                  const mins = e.target.value;
+                          onChange={(e) => {
+                            const mins = e.target.value;
                                   const hours = service.flightInfo?.time ? service.flightInfo.time.split(':')[0] || '00' : '00';
                                   if (!hours || hours === '') {
                                     return; // Don't set minutes if hours not set
                                   }
                                   updateServiceFlightInfo(day.date, service.id, 'time', `${hours}:${mins}`);
-                                }}
-                              >
+                          }}
+                        >
                                 <option value="">--</option>
                                 {Array.from({ length: 60 }, (_, i) => (
                                   <option key={i} value={i.toString().padStart(2, '0')}>
                                     {i.toString().padStart(2, '0')}
-                                  </option>
+                              </option>
                                 ))}
-                              </select>
-                            </div>
-                          </div>
-                        </div>
+                        </select>
+                      </div>
+                    </div>
+                 </div>
 
                         {/* Landing Details */}
                         {service.flightInfo?.type === 'LANDING' && (
-                          <>
-                            <div>
-                              <label className="text-xs font-bold text-gray-600 block mb-1">
-                                สนามบินที่ลง <span className="text-gray-400 font-normal">(ไม่บังคับ)</span>
-                              </label>
-                              <input
-                                type="text"
-                                className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full focus:border-amber-400"
-                                placeholder="เช่น สนามบินนาริตะ (NRT), สนามบินฮาเนดะ (HND)"
+                   <>
+                     <div>
+                       <label className="text-xs font-bold text-gray-600 block mb-1">
+                         สนามบินที่ลง <span className="text-gray-400 font-normal">(ไม่บังคับ)</span>
+                       </label>
+                       <input
+                         type="text"
+                         className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full focus:border-amber-400"
+                         placeholder="เช่น สนามบินนาริตะ (NRT), สนามบินฮาเนดะ (HND)"
                                 value={service.flightInfo?.airport || ''}
                                 onChange={(e) => updateServiceFlightInfo(day.date, service.id, 'airport', e.target.value)}
-                              />
-                            </div>
-                            <div>
-                              <label className="text-xs font-bold text-gray-600 block mb-1">
-                                จุดหมายปลายทาง <span className="text-gray-400 font-normal">(ไม่บังคับ)</span>
-                              </label>
-                              <input
-                                type="text"
-                                className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full focus:border-amber-400"
-                                placeholder="เช่น โรงแรม ABC, Hotel XYZ, ที่อยู่"
+                       />
+                     </div>
+                     <div>
+                       <label className="text-xs font-bold text-gray-600 block mb-1">
+                         จุดหมายปลายทาง <span className="text-gray-400 font-normal">(ไม่บังคับ)</span>
+                       </label>
+                       <input
+                         type="text"
+                         className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full focus:border-amber-400"
+                         placeholder="เช่น โรงแรม ABC, Hotel XYZ, ที่อยู่"
                                 value={service.flightInfo?.destination || ''}
                                 onChange={(e) => updateServiceFlightInfo(day.date, service.id, 'destination', e.target.value)}
-                              />
-                            </div>
-                          </>
-                        )}
+                       />
+                     </div>
+                   </>
+                 )}
 
                         {/* Takeoff Details */}
                         {(service.flightInfo?.type === 'TAKEOFF' || (!service.flightInfo?.type && day.date === formData.endDate)) && (
-                          <>
-                            <div>
-                              <label className="text-xs font-bold text-gray-600 block mb-1">
-                                จุดรับ <span className="text-gray-400 font-normal">(ไม่บังคับ)</span>
-                              </label>
-                              <input
-                                type="text"
-                                className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full focus:border-amber-400"
-                                placeholder="เช่น โรงแรม ABC, Hotel XYZ, ที่อยู่"
+                   <>
+                     <div>
+                       <label className="text-xs font-bold text-gray-600 block mb-1">
+                         จุดรับ <span className="text-gray-400 font-normal">(ไม่บังคับ)</span>
+                       </label>
+                       <input
+                         type="text"
+                         className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full focus:border-amber-400"
+                         placeholder="เช่น โรงแรม ABC, Hotel XYZ, ที่อยู่"
                                 value={service.flightInfo?.pickupLocation || ''}
                                 onChange={(e) => updateServiceFlightInfo(day.date, service.id, 'pickupLocation', e.target.value)}
-                              />
-                            </div>
-                            <div>
-                              <label className="text-xs font-bold text-gray-600 block mb-1">
-                                สนามบินที่ออก <span className="text-gray-400 font-normal">(ไม่บังคับ)</span>
-                              </label>
-                              <input
-                                type="text"
-                                className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full focus:border-amber-400"
-                                placeholder="เช่น สนามบินนาริตะ (NRT), สนามบินฮาเนดะ (HND)"
+                       />
+                     </div>
+                     <div>
+                       <label className="text-xs font-bold text-gray-600 block mb-1">
+                         สนามบินที่ออก <span className="text-gray-400 font-normal">(ไม่บังคับ)</span>
+                       </label>
+                       <input
+                         type="text"
+                         className="text-xs p-2 rounded-sm border border-gray-300 outline-none bg-white w-full focus:border-amber-400"
+                         placeholder="เช่น สนามบินนาริตะ (NRT), สนามบินฮาเนดะ (HND)"
                                 value={service.flightInfo?.departureAirport || ''}
                                 onChange={(e) => updateServiceFlightInfo(day.date, service.id, 'departureAirport', e.target.value)}
-                              />
-                            </div>
-                          </>
-                        )}
+                       />
+                     </div>
+                   </>
+                 )}
 
                         <div className="pt-2 border-t border-dashed border-gray-300 space-y-2">
-                          <p className="text-xs font-bold text-amber-600 bg-white px-3 py-2 rounded-sm border border-amber-100 shadow-sm text-center">
+                     <p className="text-xs font-bold text-amber-600 bg-white px-3 py-2 rounded-sm border border-amber-100 shadow-sm text-center">
                             {service.flightInfo?.time 
                               ? calculateAppointmentTime(service.flightInfo).time 
                               : (service.flightInfo?.type === 'LANDING' ? 'เวลานัดรับ: ???' : 'ถึงสนามบิน: ???')
@@ -631,10 +631,10 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
                               ? calculateAppointmentTime(service.flightInfo).note 
                               : '⚠️ กรุณาระบุเวลาไฟล์ท หรือใส่ในช่องบันทึกช่วยจำ'
                             }
-                          </p>
+                     </p>
                         </div>
-                      </div>
-                    )}
+                   </div>
+                 )}
 
                     {/* Charter Time Picker */}
                     {service.serviceType === ServiceType.CHARTER && (
@@ -689,8 +689,8 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
                             ⏱️ บริการ 10 ชม. (เริ่มนับเมื่อรถออกจากจุดนัด)
                           </p>
                         </div>
-                      </div>
-                    )}
+               </div>
+             )}
 
                   </div>
                 </div>
@@ -698,7 +698,7 @@ export const PlanningWizard: React.FC<PlanningWizardProps> = ({ onComplete, isLo
             </div>
           </div>
         ))}
-        </div>
+      </div>
       )}
     </div>
   );
