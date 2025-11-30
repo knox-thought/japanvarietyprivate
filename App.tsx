@@ -4,13 +4,14 @@ import { ItineraryView } from './components/ItineraryView';
 import { AdminLayout } from './components/AdminLayout';
 import { AdminDashboard } from './components/AdminDashboard';
 import { QuotationProcessor } from './components/QuotationProcessor';
+import { DataManager } from './components/DataManager';
 import { TripPreferences, AIItineraryResponse } from './types';
 import { generateItinerary } from './services/geminiService';
 import { Sparkles } from './components/Icons';
 import logoImage from './logo/japan-variety-logo-1.png';
 
-type AppPage = 'main' | 'admin-dashboard' | 'admin-processor';
-type AdminPage = 'dashboard' | 'processor';
+type AppPage = 'main' | 'admin-dashboard' | 'admin-processor' | 'admin-data';
+type AdminPage = 'dashboard' | 'processor' | 'data';
 
 function App() {
   const [page, setPage] = useState<AppPage>('main');
@@ -27,6 +28,8 @@ function App() {
         setPage('admin-dashboard');
       } else if (path === '/admin/processor') {
         setPage('admin-processor');
+      } else if (path === '/admin/data') {
+        setPage('admin-data');
       } else {
         setPage('main');
       }
@@ -48,6 +51,8 @@ function App() {
       navigateTo('/admin/dashboard');
     } else if (adminPage === 'processor') {
       navigateTo('/admin/processor');
+    } else if (adminPage === 'data') {
+      navigateTo('/admin/data');
     }
   };
 
@@ -109,15 +114,19 @@ function App() {
   };
 
   // Admin Pages
-  if (page === 'admin-dashboard' || page === 'admin-processor') {
-    const currentAdminPage: AdminPage = page === 'admin-dashboard' ? 'dashboard' : 'processor';
+  if (page === 'admin-dashboard' || page === 'admin-processor' || page === 'admin-data') {
+    const currentAdminPage: AdminPage = 
+      page === 'admin-dashboard' ? 'dashboard' : 
+      page === 'admin-processor' ? 'processor' : 'data';
     
     return (
       <AdminLayout currentPage={currentAdminPage} onPageChange={handleAdminPageChange}>
         {currentAdminPage === 'dashboard' ? (
           <AdminDashboard />
-        ) : (
+        ) : currentAdminPage === 'processor' ? (
           <QuotationProcessor />
+        ) : (
+          <DataManager />
         )}
       </AdminLayout>
     );

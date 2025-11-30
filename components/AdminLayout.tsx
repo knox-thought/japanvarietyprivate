@@ -2,7 +2,7 @@ import React from 'react';
 import clsx from 'clsx';
 import logoImage from '../logo/japan-variety-logo-1.png';
 
-type AdminPage = 'dashboard' | 'processor';
+type AdminPage = 'dashboard' | 'processor' | 'data';
 
 interface AdminLayoutProps {
   currentPage: AdminPage;
@@ -28,10 +28,19 @@ const navItems: NavItem[] = [
   },
   {
     id: 'processor',
-    label: 'Quotation Processor',
+    label: 'Quotation',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'data',
+    label: 'จัดการข้อมูล',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
       </svg>
     ),
   },
