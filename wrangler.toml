@@ -19,5 +19,4 @@ bucket_name = "japanvariety-files"
 # Environment Variables
 [vars]
 # R2 Public URL - ตั้งค่าเป็น custom domain หรือใช้ default: https://pub-<account-id>.r2.dev
-# R2_PUBLIC_URL = "https://your-custom-domain.com"
-# หรือถ้าใช้ default R2 public URL ให้เว้นว่างไว้ (ระบบจะใช้ auto-generated URL)
+R2_PUBLIC_URL = "https://pub-4677acd0d6cd424caff178f463497444.r2.dev"
