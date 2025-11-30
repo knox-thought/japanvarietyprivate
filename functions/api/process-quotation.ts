@@ -161,11 +161,16 @@ Return valid JSON matching the schema.
     // Calculate selling prices (costPrice × markupMultiplier)
     const multiplier = markupMultiplier || 1.391;
     
+    // Round up to nearest 1000 yen
+    const roundUpTo1000 = (price: number): number => {
+      return Math.ceil(price / 1000) * 1000;
+    };
+    
     const processedDays = parsed.days.map((day: any) => ({
       ...day,
       date: normalizeDate(day.date), // Fix year conversion (69 -> 2026, not 2069)
       costPrice: day.costPrice,
-      sellingPrice: Math.ceil(day.costPrice * multiplier), // Round up to nearest yen
+      sellingPrice: roundUpTo1000(day.costPrice * multiplier), // Round up to nearest 1000 yen
       currency: day.currency || '¥'
     }));
 

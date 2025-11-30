@@ -96,7 +96,15 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({ plan, prefs, onRes
         {plan.itinerary
           .filter((day) => {
             // Filter out days without car service
-            const isNoService = day.serviceType.includes('ไม่ใช้') || day.serviceType.includes('None');
+            // Check for various ways AI might indicate "no service"
+            const serviceTypeLower = day.serviceType.toLowerCase();
+            const isNoService = 
+              serviceTypeLower.includes('ไม่ใช้') || 
+              serviceTypeLower.includes('none') ||
+              serviceTypeLower.includes('no car') ||
+              serviceTypeLower.includes('no service') ||
+              serviceTypeLower === 'none' ||
+              serviceTypeLower.trim() === '';
             return !isNoService;
           })
           .map((day) => (

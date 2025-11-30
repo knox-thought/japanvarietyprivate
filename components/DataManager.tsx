@@ -28,6 +28,8 @@ const formatNumber = (value: number | string, length = 2) => {
   return String(value).padStart(length, '0');
 };
 
+// Generate booking code: customerId-YYYYMMDDHHmm
+// This matches the format expected by the system
 const generateBookingCode = (customerId: number | string) => {
   const now = new Date();
   const yyyy = now.getFullYear();
