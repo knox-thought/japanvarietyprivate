@@ -22,6 +22,20 @@ interface FieldConfig {
   hidden?: boolean; // Hide from form but show in table
 }
 
+const formatNumber = (value: number | string, length = 2) => {
+  return String(value).padStart(length, '0');
+};
+
+const generateBookingCode = (customerId: number | string) => {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = formatNumber(now.getMonth() + 1);
+  const dd = formatNumber(now.getDate());
+  const hh = formatNumber(now.getHours());
+  const min = formatNumber(now.getMinutes());
+  return `${customerId}-${yyyy}${mm}${dd}${hh}${min}`;
+};
+
 const TABLES: TableConfig[] = [
   // ==================== ลูกค้า ====================
   {
@@ -384,7 +398,20 @@ export const DataManager: React.FC = () => {
   };
 
   const handleInputChange = (field: string, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => {
+      const updated = { ...prev, [field]: value };
+
+      if (
+        activeTable === 'bookings' &&
+        field === 'customer_id' &&
+        value &&
+        !editingItem
+      ) {
+        updated.booking_code = generateBookingCode(value);
+      }
+
+      return updated;
+    });
   };
 
   const showSuccess = (message: string) => {
