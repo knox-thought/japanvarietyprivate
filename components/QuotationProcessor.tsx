@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sparkles, Copy, Check, Calculator, FileText } from './Icons';
 import clsx from 'clsx';
 
@@ -21,15 +21,53 @@ interface ProcessedQuotation {
   notes: string[];
 }
 
+interface SavedQuotation {
+  id: number;
+  customer_name: string;
+  operator_name?: string;
+  created_at: string;
+  status: string;
+  total_cost: number;
+  total_selling: number;
+  profit: number;
+}
+
+// Round up to nearest 1000 yen
+const roundUpTo1000 = (price: number): number => {
+  return Math.ceil(price / 1000) * 1000;
+};
+
 export const QuotationProcessor: React.FC = () => {
   const [input1, setInput1] = useState('');
   const [input2, setInput2] = useState('');
+  const [operatorName, setOperatorName] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [result, setResult] = useState<ProcessedQuotation | null>(null);
   const [copiedOutput, setCopiedOutput] = useState<'cost' | 'selling' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [savedQuotations, setSavedQuotations] = useState<SavedQuotation[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   const MARKUP_MULTIPLIER = 1.391; // 30% margin + 7% VAT
+
+  // Fetch saved quotations
+  const fetchQuotations = async () => {
+    try {
+      const response = await fetch('/api/quotations?limit=20');
+      if (response.ok) {
+        const data = await response.json();
+        setSavedQuotations(data.quotations || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch quotations:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchQuotations();
+  }, []);
 
   const processQuotation = async () => {
     if (!input1.trim() || !input2.trim()) {
@@ -39,6 +77,7 @@ export const QuotationProcessor: React.FC = () => {
 
     setIsProcessing(true);
     setError(null);
+    setSaveSuccess(false);
 
     try {
       const response = await fetch('/api/process-quotation', {
@@ -56,12 +95,63 @@ export const QuotationProcessor: React.FC = () => {
       }
 
       const data = await response.json();
-      setResult(data);
+      
+      // Apply rounding up to nearest 1000 yen for selling prices
+      const processedDays = data.days.map((day: ProcessedDay) => ({
+        ...day,
+        sellingPrice: roundUpTo1000(day.costPrice * MARKUP_MULTIPLIER)
+      }));
+      
+      const totalSelling = processedDays.reduce((sum: number, day: ProcessedDay) => sum + day.sellingPrice, 0);
+      
+      setResult({
+        ...data,
+        days: processedDays,
+        totalSelling
+      });
     } catch (err) {
       setError('เกิดข้อผิดพลาดในการประมวลผล กรุณาลองใหม่อีกครั้ง');
       console.error(err);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const saveQuotation = async () => {
+    if (!result) return;
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/save-quotation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: result.customerName,
+          operatorName: operatorName || null,
+          totalCost: result.totalCost,
+          totalSelling: result.totalSelling,
+          days: result.days,
+          notes: result.notes,
+          ourQuotationText: input1,
+          operatorResponseText: input2
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save quotation');
+      }
+
+      setSaveSuccess(true);
+      fetchQuotations(); // Refresh the list
+      
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      setError('เกิดข้อผิดพลาดในการบันทึก กรุณาลองใหม่อีกครั้ง');
+      console.error(err);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -112,8 +202,67 @@ export const QuotationProcessor: React.FC = () => {
           Quotation Processor
         </h1>
         <p className="text-gray-500">
-          ประมวลผลราคาจาก Operator และคำนวณราคาขายอัตโนมัติ
+          ประมวลผลราคาจาก Operator และคำนวณราคาขายอัตโนมัติ (ปัดขึ้นเป็น ¥X,000)
         </p>
+        
+        {/* Toggle History */}
+        <button
+          onClick={() => setShowHistory(!showHistory)}
+          className="mt-4 text-sm text-amber-600 hover:text-amber-800 underline"
+        >
+          {showHistory ? 'ซ่อนประวัติ' : `ดูประวัติ Quotations (${savedQuotations.length})`}
+        </button>
+      </div>
+
+      {/* History Section */}
+      {showHistory && savedQuotations.length > 0 && (
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+          <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+            <h2 className="font-bold text-gray-800">📋 ประวัติ Quotations ล่าสุด</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">วันที่</th>
+                  <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">ลูกค้า</th>
+                  <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Operator</th>
+                  <th className="px-4 py-2 text-right text-xs font-bold text-gray-500 uppercase">ต้นทุน</th>
+                  <th className="px-4 py-2 text-right text-xs font-bold text-gray-500 uppercase">ราคาขาย</th>
+                  <th className="px-4 py-2 text-right text-xs font-bold text-gray-500 uppercase">กำไร</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {savedQuotations.map((q) => (
+                  <tr key={q.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 text-gray-600">
+                      {new Date(q.created_at).toLocaleDateString('th-TH')}
+                    </td>
+                    <td className="px-4 py-2 font-medium text-gray-900">{q.customer_name}</td>
+                    <td className="px-4 py-2 text-gray-600">{q.operator_name || '-'}</td>
+                    <td className="px-4 py-2 text-right text-blue-600">¥{q.total_cost.toLocaleString()}</td>
+                    <td className="px-4 py-2 text-right text-green-600 font-bold">¥{q.total_selling.toLocaleString()}</td>
+                    <td className="px-4 py-2 text-right text-amber-600">¥{q.profit.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Operator Name */}
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+        <label className="block text-sm font-bold text-gray-700 mb-2">
+          ชื่อบริษัทรถ (Operator)
+        </label>
+        <input
+          type="text"
+          value={operatorName}
+          onChange={(e) => setOperatorName(e.target.value)}
+          placeholder="เช่น ABC Transport, XYZ Hire"
+          className="w-full p-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:border-amber-500"
+        />
       </div>
 
       {/* Input Section */}
@@ -310,13 +459,47 @@ Date:2026-02-21
         </div>
       )}
 
-      {/* Data Export Info */}
+      {/* Save Button & Data Export */}
       {result && (
-        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
-          <h3 className="font-bold text-gray-800 mb-2">📊 ข้อมูลสำหรับเก็บเข้าระบบ</h3>
-          <pre className="bg-white p-3 rounded border border-gray-200 text-xs overflow-x-auto">
-            {JSON.stringify(result, null, 2)}
-          </pre>
+        <div className="space-y-4">
+          {/* Save Button */}
+          <div className="flex justify-center gap-4">
+            <button
+              onClick={saveQuotation}
+              disabled={isSaving || saveSuccess}
+              className={clsx(
+                "flex items-center gap-2 px-8 py-3 rounded-lg font-bold text-white transition-all",
+                saveSuccess
+                  ? "bg-green-500"
+                  : isSaving
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700 shadow-lg"
+              )}
+            >
+              {saveSuccess ? (
+                <>
+                  <Check className="w-5 h-5" />
+                  บันทึกสำเร็จ!
+                </>
+              ) : isSaving ? (
+                'กำลังบันทึก...'
+              ) : (
+                <>
+                  💾 บันทึกลงฐานข้อมูล
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Data Export Info */}
+          <details className="bg-gray-50 rounded-lg border border-gray-200">
+            <summary className="p-4 cursor-pointer font-bold text-gray-800">
+              📊 ดู JSON Data (สำหรับ Developer)
+            </summary>
+            <pre className="p-4 bg-white border-t border-gray-200 text-xs overflow-x-auto">
+              {JSON.stringify(result, null, 2)}
+            </pre>
+          </details>
         </div>
       )}
     </div>
