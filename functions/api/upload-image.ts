@@ -80,10 +80,23 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
     }
 
     // Get public URL
-    // Use our API endpoint to serve files from R2
-    // This works regardless of R2 public access settings
-    const baseUrl = new URL(request.url).origin;
-    const publicUrl = `${baseUrl}/api/r2/${filename}`;
+    // Priority: R2_PUBLIC_URL (custom domain) > R2 public endpoint > API endpoint
+    let publicUrl: string;
+    
+    if (env.R2_PUBLIC_URL) {
+      // Use custom domain
+      publicUrl = `${env.R2_PUBLIC_URL.replace(/\/$/, '')}/${filename}`;
+    } else {
+      // Use R2 public endpoint (requires public access enabled)
+      // Format: https://<account-id>.r2.cloudflarestorage.com/<bucket-name>/<filename>
+      // Or use API endpoint as fallback (but this requires Zero Trust exception)
+      const baseUrl = new URL(request.url).origin;
+      publicUrl = `${baseUrl}/api/r2/${filename}`;
+      
+      // Note: If Zero Trust blocks /api/r2/*, you need to:
+      // 1. Enable R2 Public Access and use R2_PUBLIC_URL, OR
+      // 2. Add /api/r2/* exception in Zero Trust Access
+    }
 
     return new Response(
       JSON.stringify({
