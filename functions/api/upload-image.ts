@@ -66,12 +66,18 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
     const filename = `${folder}/${timestamp}-${randomStr}.${ext}`;
 
     // Upload to R2
-    await r2Bucket.put(filename, file.stream(), {
-      httpMetadata: {
-        contentType: file.type,
-        cacheControl: 'public, max-age=31536000',
-      },
-    });
+    try {
+      await r2Bucket.put(filename, file.stream(), {
+        httpMetadata: {
+          contentType: file.type,
+          cacheControl: 'public, max-age=31536000',
+        },
+      });
+      console.log('File uploaded to R2:', filename);
+    } catch (uploadError) {
+      console.error('R2 upload error:', uploadError);
+      throw new Error(`Failed to upload to R2: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}`);
+    }
 
     // Get public URL
     // Use our API endpoint to serve files from R2

@@ -11,15 +11,37 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
 
   const r2Bucket = env.R2_BUCKET;
   if (!r2Bucket) {
-    return new Response('R2 bucket not configured', { status: 500 });
+    return new Response(
+      JSON.stringify({ error: 'R2 bucket not configured' }),
+      { 
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
+        }
+      }
+    );
   }
 
   try {
-    // Get file from R2
-    const object = await r2Bucket.get(params.path);
+    // Decode path and get file from R2
+    const filePath = decodeURIComponent(params.path);
+    console.log('Fetching from R2:', filePath);
+    
+    const object = await r2Bucket.get(filePath);
 
     if (!object) {
-      return new Response('File not found', { status: 404 });
+      console.log('File not found in R2:', filePath);
+      return new Response(
+        JSON.stringify({ error: 'File not found', path: filePath }),
+        { 
+          status: 404,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
+          }
+        }
+      );
     }
 
     // Get content type from object metadata or infer from extension
@@ -30,6 +52,7 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
        'application/octet-stream');
 
     // Return file with proper headers
+    // R2 object.body is already a ReadableStream
     return new Response(object.body, {
       headers: {
         'Content-Type': contentType,
@@ -40,7 +63,21 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
     });
   } catch (error) {
     console.error('Error serving file from R2:', error);
-    return new Response('Error serving file', { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return new Response(
+      JSON.stringify({ 
+        error: 'Error serving file',
+        message: errorMessage,
+        path: params.path
+      }),
+      { 
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
+        }
+      }
+    );
   }
 };
 
