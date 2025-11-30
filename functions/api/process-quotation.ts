@@ -80,6 +80,14 @@ TASK:
 5. Extract any important notes/conditions from the operator response (time restrictions, special arrangements, etc.)
 6. Currency is always "¥" for Japanese Yen
 
+IMPORTANT DATE PARSING RULES:
+- Dates should be output in YYYY-MM-DD format using CE (Christian Era / ค.ศ.) year
+- If input year is 2-digit and >= 50 (like "69", "68"), it's Buddhist Era short form: 2569 → CE 2026, 2568 → CE 2025
+- If input year is 2-digit and < 50 (like "25", "26"), it's CE: 2025, 2026
+- If input year is 4-digit and >= 2500, it's Buddhist Era: subtract 543 to get CE
+- If input year is 4-digit and < 2500, it's already CE
+- Example: "15/02/69" → "2026-02-15", "15/02/26" → "2026-02-15", "15/02/2569" → "2026-02-15"
+
 IMPORTANT:
 - Match dates carefully between Input 1 and Input 2
 - Parse ALL price components (base price + any additional fees) into the total costPrice
