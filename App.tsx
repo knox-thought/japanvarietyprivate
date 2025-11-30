@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { PlanningWizard } from './components/PlanningWizard';
 import { ItineraryView } from './components/ItineraryView';
+import { AdminLayout } from './components/AdminLayout';
+import { AdminDashboard } from './components/AdminDashboard';
 import { QuotationProcessor } from './components/QuotationProcessor';
 import { TripPreferences, AIItineraryResponse } from './types';
 import { generateItinerary } from './services/geminiService';
 import { Sparkles } from './components/Icons';
 import logoImage from './logo/japan-variety-logo-1.png';
 
-type AppPage = 'main' | 'admin';
+type AppPage = 'main' | 'admin-dashboard' | 'admin-processor';
+type AdminPage = 'dashboard' | 'processor';
 
 function App() {
   const [page, setPage] = useState<AppPage>('main');
@@ -20,8 +23,10 @@ function App() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash;
-      if (hash === '#admin' || hash === '#/admin') {
-        setPage('admin');
+      if (hash === '#/admin' || hash === '#/admin/dashboard') {
+        setPage('admin-dashboard');
+      } else if (hash === '#/admin/processor') {
+        setPage('admin-processor');
       } else {
         setPage('main');
       }
@@ -31,6 +36,14 @@ function App() {
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
+
+  const handleAdminPageChange = (adminPage: AdminPage) => {
+    if (adminPage === 'dashboard') {
+      window.location.hash = '#/admin/dashboard';
+    } else if (adminPage === 'processor') {
+      window.location.hash = '#/admin/processor';
+    }
+  };
 
   const handlePlanningComplete = async (data: TripPreferences) => {
     setPrefs(data);
@@ -89,6 +102,22 @@ function App() {
     setError(null);
   };
 
+  // Admin Pages
+  if (page === 'admin-dashboard' || page === 'admin-processor') {
+    const currentAdminPage: AdminPage = page === 'admin-dashboard' ? 'dashboard' : 'processor';
+    
+    return (
+      <AdminLayout currentPage={currentAdminPage} onPageChange={handleAdminPageChange}>
+        {currentAdminPage === 'dashboard' ? (
+          <AdminDashboard />
+        ) : (
+          <QuotationProcessor />
+        )}
+      </AdminLayout>
+    );
+  }
+
+  // Main Site
   return (
     <div className="min-h-screen bg-[#FAFAFA] text-gray-900 font-sans selection:bg-amber-200 selection:text-black">
       
@@ -116,25 +145,23 @@ function App() {
             </span>
           </div>
         </div>
+
+        {/* Admin Link */}
+        <a
+          href="#/admin"
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span className="hidden sm:inline">Admin</span>
+        </a>
       </nav>
 
       <main className="relative z-10 container mx-auto px-4 pt-12 pb-20">
         
-        {/* Admin Page */}
-        {page === 'admin' ? (
-          <div>
-            <button 
-              onClick={() => {
-                window.location.hash = '';
-                setPage('main');
-              }} 
-              className="mb-8 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-black flex items-center gap-2 transition-colors"
-            >
-              ← กลับหน้าหลัก
-            </button>
-            <QuotationProcessor />
-          </div>
-        ) : !itinerary ? (
+        {!itinerary ? (
           <div className="flex flex-col items-center justify-center min-h-[80vh]">
             <div className="text-center mb-12 max-w-3xl mx-auto">
               <span className="text-amber-600 font-bold tracking-[0.2em] text-xs uppercase mb-3 block">Premium Travel Concierge</span>
