@@ -67,6 +67,7 @@ const TABLES: TableConfig[] = [
     icon: '📅',
     fields: [
       { name: 'customer_id', label: 'ลูกค้า', type: 'relation', required: true, relationTable: 'customers', relationLabelField: 'name' },
+      { name: 'car_company_id', label: 'บริษัทรถ', type: 'relation', relationTable: 'car_companies', relationLabelField: 'name' },
       { name: 'booking_code', label: 'รหัสการจอง', type: 'text', required: true, placeholder: 'BK-2024-001' },
       { name: 'travel_start_date', label: 'วันเริ่มเดินทาง', type: 'date', required: true },
       { name: 'travel_end_date', label: 'วันสิ้นสุด', type: 'date', required: true },
