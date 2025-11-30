@@ -1,16 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PlanningWizard } from './components/PlanningWizard';
 import { ItineraryView } from './components/ItineraryView';
+import { QuotationProcessor } from './components/QuotationProcessor';
 import { TripPreferences, AIItineraryResponse } from './types';
 import { generateItinerary } from './services/geminiService';
 import { Sparkles } from './components/Icons';
 import logoImage from './logo/japan-variety-logo-1.png';
 
+type AppPage = 'main' | 'admin';
+
 function App() {
+  const [page, setPage] = useState<AppPage>('main');
   const [prefs, setPrefs] = useState<TripPreferences | null>(null);
   const [itinerary, setItinerary] = useState<AIItineraryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Handle URL hash for routing
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      if (hash === '#admin' || hash === '#/admin') {
+        setPage('admin');
+      } else {
+        setPage('main');
+      }
+    };
+
+    handleHashChange();
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   const handlePlanningComplete = async (data: TripPreferences) => {
     setPrefs(data);
@@ -100,7 +120,21 @@ function App() {
 
       <main className="relative z-10 container mx-auto px-4 pt-12 pb-20">
         
-        {!itinerary ? (
+        {/* Admin Page */}
+        {page === 'admin' ? (
+          <div>
+            <button 
+              onClick={() => {
+                window.location.hash = '';
+                setPage('main');
+              }} 
+              className="mb-8 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-black flex items-center gap-2 transition-colors"
+            >
+              ← กลับหน้าหลัก
+            </button>
+            <QuotationProcessor />
+          </div>
+        ) : !itinerary ? (
           <div className="flex flex-col items-center justify-center min-h-[80vh]">
             <div className="text-center mb-12 max-w-3xl mx-auto">
               <span className="text-amber-600 font-bold tracking-[0.2em] text-xs uppercase mb-3 block">Premium Travel Concierge</span>
