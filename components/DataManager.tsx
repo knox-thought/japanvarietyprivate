@@ -407,13 +407,19 @@ export const DataManager: React.FC = () => {
     setFormData(prev => {
       const updated = { ...prev, [field]: value };
 
+      // Auto-generate booking code when customer is selected (only for new bookings)
       if (
         activeTable === 'bookings' &&
         field === 'customer_id' &&
         value &&
-        !editingItem
+        !editingItem &&
+        !prev.booking_code // Only generate if booking_code is not already set
       ) {
-        updated.booking_code = generateBookingCode(value);
+        // Ensure value is a number
+        const customerId = typeof value === 'string' ? Number(value) : value;
+        if (!isNaN(customerId)) {
+          updated.booking_code = generateBookingCode(customerId);
+        }
       }
 
       return updated;
