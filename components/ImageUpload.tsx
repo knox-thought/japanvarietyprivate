@@ -18,6 +18,8 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
 }) => {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [urlInput, setUrlInput] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -51,6 +53,12 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
 
       if (!response.ok) {
         const errorData = await response.json();
+        // If R2 not configured, show URL input option
+        if (errorData.error?.includes('R2 bucket not configured')) {
+          setError('R2 ยังไม่ได้ตั้งค่า - ใช้ปุ่ม "ใส่ URL เอง" แทน');
+          setShowUrlInput(true);
+          return;
+        }
         throw new Error(errorData.error || 'Upload failed');
       }
 
@@ -98,6 +106,43 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
           </button>
           <div className="mt-2 text-xs text-gray-500 break-all">{value}</div>
         </div>
+      ) : showUrlInput ? (
+        <div className="space-y-2">
+          <input
+            type="text"
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            placeholder="https://example.com/image.jpg"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (urlInput.trim()) {
+                  onChange(urlInput.trim());
+                  setShowUrlInput(false);
+                  setUrlInput('');
+                  setError(null);
+                }
+              }}
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium transition-colors"
+            >
+              ใช้ URL นี้
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowUrlInput(false);
+                setUrlInput('');
+                setError(null);
+              }}
+              className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-colors"
+            >
+              ยกเลิก
+            </button>
+          </div>
+        </div>
       ) : (
         <div
           onClick={() => fileInputRef.current?.click()}
@@ -123,6 +168,16 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
             </div>
           )}
         </div>
+      )}
+
+      {!value && !showUrlInput && (
+        <button
+          type="button"
+          onClick={() => setShowUrlInput(true)}
+          className="w-full mt-2 px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          หรือใส่ URL รูปภาพเอง
+        </button>
       )}
 
       <input
