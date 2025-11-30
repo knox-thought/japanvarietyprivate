@@ -4,7 +4,17 @@ const ALLOWED_ORIGINS = [
   'http://localhost:3000',
 ];
 
-const ALLOWED_TABLES = ['customers', 'car_companies', 'bookings', 'quotations'];
+const ALLOWED_TABLES = [
+  'customers', 
+  'car_companies', 
+  'bookings', 
+  'car_bookings',
+  'itineraries',
+  'payments',
+  'notifications',
+  'quotations', 
+  'users'
+];
 
 // Validate table name to prevent SQL injection
 const isValidTable = (table: string): boolean => {

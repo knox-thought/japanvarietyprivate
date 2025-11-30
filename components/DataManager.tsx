@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import clsx from 'clsx';
 
-type TableName = 'customers' | 'car_companies' | 'bookings' | 'quotations';
+type TableName = 'customers' | 'car_companies' | 'bookings' | 'car_bookings' | 'itineraries' | 'payments' | 'notifications' | 'quotations' | 'users';
 
 interface TableConfig {
   name: TableName;
@@ -13,16 +13,17 @@ interface TableConfig {
 interface FieldConfig {
   name: string;
   label: string;
-  type: 'text' | 'number' | 'email' | 'tel' | 'date' | 'textarea' | 'select' | 'relation';
+  type: 'text' | 'number' | 'email' | 'tel' | 'date' | 'datetime' | 'textarea' | 'select' | 'relation' | 'readonly';
   required?: boolean;
   options?: { value: string; label: string }[];
   placeholder?: string;
-  // For relation type
   relationTable?: string;
   relationLabelField?: string;
+  hidden?: boolean; // Hide from form but show in table
 }
 
 const TABLES: TableConfig[] = [
+  // ==================== ลูกค้า ====================
   {
     name: 'customers',
     label: 'ลูกค้า',
@@ -37,14 +38,18 @@ const TABLES: TableConfig[] = [
         { value: 'line', label: 'LINE' },
         { value: 'website', label: 'Website' },
         { value: 'referral', label: 'แนะนำ' },
+        { value: 'facebook', label: 'Facebook' },
+        { value: 'instagram', label: 'Instagram' },
         { value: 'other', label: 'อื่นๆ' },
       ]},
       { name: 'notes', label: 'หมายเหตุ', type: 'textarea', placeholder: 'บันทึกเพิ่มเติม...' },
     ],
   },
+
+  // ==================== บริษัทรถ ====================
   {
     name: 'car_companies',
-    label: 'บริษัทรถ (Operator)',
+    label: 'บริษัทรถ',
     icon: '🚗',
     fields: [
       { name: 'name', label: 'ชื่อบริษัท', type: 'text', required: true, placeholder: 'ชื่อบริษัทรถ' },
@@ -54,48 +59,171 @@ const TABLES: TableConfig[] = [
       { name: 'line_id', label: 'LINE ID', type: 'text', placeholder: '@lineid' },
       { name: 'regions_served', label: 'พื้นที่ให้บริการ', type: 'text', placeholder: 'Tokyo, Osaka, Kyoto...' },
       { name: 'vehicle_types', label: 'ประเภทรถ', type: 'textarea', placeholder: 'Alphard, Coaster, Hiace...' },
-      { name: 'is_active', label: 'ใช้งาน', type: 'select', options: [
-        { value: '1', label: 'ใช้งาน' },
-        { value: '0', label: 'ไม่ใช้งาน' },
+      { name: 'is_active', label: 'สถานะ', type: 'select', options: [
+        { value: '1', label: '✅ ใช้งาน' },
+        { value: '0', label: '❌ ไม่ใช้งาน' },
       ]},
       { name: 'notes', label: 'หมายเหตุ', type: 'textarea', placeholder: 'บันทึกเพิ่มเติม...' },
     ],
   },
+
+  // ==================== การจอง ====================
   {
     name: 'bookings',
     label: 'การจอง',
     icon: '📅',
     fields: [
       { name: 'customer_id', label: 'ลูกค้า', type: 'relation', required: true, relationTable: 'customers', relationLabelField: 'name' },
-      { name: 'car_company_id', label: 'บริษัทรถ', type: 'relation', relationTable: 'car_companies', relationLabelField: 'name' },
       { name: 'booking_code', label: 'รหัสการจอง', type: 'text', required: true, placeholder: 'BK-2024-001' },
       { name: 'travel_start_date', label: 'วันเริ่มเดินทาง', type: 'date', required: true },
       { name: 'travel_end_date', label: 'วันสิ้นสุด', type: 'date', required: true },
       { name: 'region', label: 'พื้นที่', type: 'text', placeholder: 'Tokyo, Hakuba...' },
-      { name: 'pax_adults', label: 'ผู้ใหญ่ (คน)', type: 'number' },
-      { name: 'pax_children', label: 'เด็ก (คน)', type: 'number' },
-      { name: 'pax_toddlers', label: 'เด็กเล็ก 0-6 (คน)', type: 'number' },
-      { name: 'luggage_large', label: 'กระเป๋าใหญ่', type: 'number' },
-      { name: 'luggage_small', label: 'กระเป๋าเล็ก', type: 'number' },
-      { name: 'total_price', label: 'ราคารวม', type: 'number' },
+      { name: 'pax_adults', label: 'ผู้ใหญ่', type: 'number', placeholder: '0' },
+      { name: 'pax_children', label: 'เด็ก 6-12', type: 'number', placeholder: '0' },
+      { name: 'pax_toddlers', label: 'เด็กเล็ก 0-6', type: 'number', placeholder: '0' },
+      { name: 'luggage_large', label: 'กระเป๋าใหญ่', type: 'number', placeholder: '0' },
+      { name: 'luggage_small', label: 'กระเป๋าเล็ก', type: 'number', placeholder: '0' },
+      { name: 'total_price', label: 'ราคารวม', type: 'number', placeholder: '0' },
       { name: 'currency', label: 'สกุลเงิน', type: 'select', options: [
         { value: 'THB', label: 'THB (บาท)' },
         { value: 'JPY', label: 'JPY (เยน)' },
         { value: 'USD', label: 'USD (ดอลลาร์)' },
       ]},
-      { name: 'deposit_amount', label: 'มัดจำ', type: 'number' },
+      { name: 'deposit_amount', label: 'มัดจำ', type: 'number', placeholder: '0' },
+      { name: 'next_payment_amount', label: 'ยอดชำระถัดไป', type: 'number', placeholder: '0' },
       { name: 'status', label: 'สถานะ', type: 'select', options: [
-        { value: 'inquiry', label: 'สอบถาม' },
-        { value: 'pending', label: 'รอดำเนินการ' },
-        { value: 'confirmed', label: 'ยืนยันแล้ว' },
-        { value: 'deposit_paid', label: 'จ่ายมัดจำแล้ว' },
-        { value: 'fully_paid', label: 'จ่ายครบแล้ว' },
-        { value: 'completed', label: 'เสร็จสิ้น' },
-        { value: 'cancelled', label: 'ยกเลิก' },
+        { value: 'inquiry', label: '💬 สอบถาม' },
+        { value: 'pending', label: '⏳ รอดำเนินการ' },
+        { value: 'confirmed', label: '✅ ยืนยันแล้ว' },
+        { value: 'deposit_paid', label: '💰 จ่ายมัดจำแล้ว' },
+        { value: 'fully_paid', label: '💵 จ่ายครบแล้ว' },
+        { value: 'completed', label: '🏁 เสร็จสิ้น' },
+        { value: 'cancelled', label: '❌ ยกเลิก' },
+      ]},
+      { name: 'route_quotation', label: 'Quotation เส้นทาง', type: 'textarea', placeholder: 'รายละเอียดเส้นทาง...' },
+      { name: 'notes', label: 'หมายเหตุ', type: 'textarea' },
+    ],
+  },
+
+  // ==================== การจองรถ (แต่ละวัน) ====================
+  {
+    name: 'car_bookings',
+    label: 'การจองรถ',
+    icon: '🚐',
+    fields: [
+      { name: 'booking_id', label: 'การจอง', type: 'relation', required: true, relationTable: 'bookings', relationLabelField: 'booking_code' },
+      { name: 'car_company_id', label: 'บริษัทรถ', type: 'relation', relationTable: 'car_companies', relationLabelField: 'name' },
+      { name: 'service_date', label: 'วันที่ใช้บริการ', type: 'date', required: true },
+      { name: 'vehicle_type', label: 'ประเภทรถ', type: 'text', placeholder: 'Alphard, Coaster...' },
+      { name: 'service_type', label: 'ประเภทบริการ', type: 'select', options: [
+        { value: 'charter_10h', label: 'เช่า 10 ชั่วโมง' },
+        { value: 'transfer', label: 'รับ-ส่ง' },
+        { value: 'airport_pickup', label: 'รับสนามบิน' },
+        { value: 'airport_dropoff', label: 'ส่งสนามบิน' },
+      ]},
+      { name: 'pickup_time', label: 'เวลารับ', type: 'text', placeholder: '08:00' },
+      { name: 'pickup_location', label: 'สถานที่รับ', type: 'text', placeholder: 'โรงแรม...' },
+      { name: 'dropoff_location', label: 'สถานที่ส่ง', type: 'text', placeholder: 'โรงแรม...' },
+      { name: 'quoted_price', label: 'ราคาเสนอ', type: 'number', placeholder: '0' },
+      { name: 'confirmed_price', label: 'ราคายืนยัน', type: 'number', placeholder: '0' },
+      { name: 'driver_name', label: 'ชื่อคนขับ', type: 'text', placeholder: 'ชื่อคนขับ' },
+      { name: 'driver_phone', label: 'เบอร์คนขับ', type: 'tel', placeholder: '08x-xxx-xxxx' },
+      { name: 'status', label: 'สถานะ', type: 'select', options: [
+        { value: 'pending', label: '⏳ รอยืนยัน' },
+        { value: 'confirmed', label: '✅ ยืนยันแล้ว' },
+        { value: 'completed', label: '🏁 เสร็จสิ้น' },
+        { value: 'cancelled', label: '❌ ยกเลิก' },
       ]},
       { name: 'notes', label: 'หมายเหตุ', type: 'textarea' },
     ],
   },
+
+  // ==================== แผนการเดินทาง ====================
+  {
+    name: 'itineraries',
+    label: 'แผนเดินทาง',
+    icon: '🗺️',
+    fields: [
+      { name: 'booking_id', label: 'การจอง', type: 'relation', required: true, relationTable: 'bookings', relationLabelField: 'booking_code' },
+      { name: 'version', label: 'Version', type: 'number', placeholder: '1' },
+      { name: 'trip_title', label: 'ชื่อทริป', type: 'text', placeholder: 'Japan Winter Trip 2024' },
+      { name: 'summary', label: 'สรุป', type: 'textarea', placeholder: 'สรุปแผนการเดินทาง...' },
+      { name: 'vehicle_recommendation', label: 'รถแนะนำ', type: 'text', placeholder: 'Alphard, Coaster...' },
+      { name: 'quotation_text', label: 'Quotation Text', type: 'textarea', placeholder: 'ข้อความ quotation...' },
+      { name: 'full_itinerary_json', label: 'Itinerary JSON', type: 'textarea', placeholder: '{"days": [...]}' },
+      { name: 'is_final', label: 'Final', type: 'select', options: [
+        { value: '0', label: '📝 แบบร่าง' },
+        { value: '1', label: '✅ Final' },
+      ]},
+    ],
+  },
+
+  // ==================== การชำระเงิน ====================
+  {
+    name: 'payments',
+    label: 'การชำระเงิน',
+    icon: '💳',
+    fields: [
+      { name: 'booking_id', label: 'การจอง', type: 'relation', required: true, relationTable: 'bookings', relationLabelField: 'booking_code' },
+      { name: 'payment_type', label: 'ประเภท', type: 'select', required: true, options: [
+        { value: 'deposit', label: '💰 มัดจำ' },
+        { value: 'full', label: '💵 ชำระเต็ม' },
+        { value: 'partial', label: '📊 ชำระบางส่วน' },
+        { value: 'refund', label: '↩️ คืนเงิน' },
+      ]},
+      { name: 'amount', label: 'จำนวนเงิน', type: 'number', required: true, placeholder: '0' },
+      { name: 'currency', label: 'สกุลเงิน', type: 'select', options: [
+        { value: 'THB', label: 'THB (บาท)' },
+        { value: 'JPY', label: 'JPY (เยน)' },
+        { value: 'USD', label: 'USD (ดอลลาร์)' },
+      ]},
+      { name: 'payment_method', label: 'ช่องทาง', type: 'select', options: [
+        { value: 'bank_transfer', label: '🏦 โอนเงิน' },
+        { value: 'credit_card', label: '💳 บัตรเครดิต' },
+        { value: 'promptpay', label: '📱 PromptPay' },
+        { value: 'cash', label: '💵 เงินสด' },
+      ]},
+      { name: 'slip_url', label: 'URL สลิป', type: 'text', placeholder: 'https://...' },
+      { name: 'reference_no', label: 'เลขอ้างอิง', type: 'text', placeholder: 'REF-xxx' },
+      { name: 'paid_at', label: 'วันที่ชำระ', type: 'datetime' },
+      { name: 'verified_at', label: 'วันที่ตรวจสอบ', type: 'datetime' },
+      { name: 'verified_by', label: 'ตรวจสอบโดย', type: 'relation', relationTable: 'users', relationLabelField: 'name' },
+      { name: 'notes', label: 'หมายเหตุ', type: 'textarea' },
+    ],
+  },
+
+  // ==================== การแจ้งเตือน ====================
+  {
+    name: 'notifications',
+    label: 'การแจ้งเตือน',
+    icon: '🔔',
+    fields: [
+      { name: 'booking_id', label: 'การจอง', type: 'relation', required: true, relationTable: 'bookings', relationLabelField: 'booking_code' },
+      { name: 'notification_type', label: 'ประเภท', type: 'select', required: true, options: [
+        { value: 'payment_reminder', label: '💰 แจ้งชำระเงิน' },
+        { value: 'trip_reminder', label: '✈️ แจ้งเตือนทริป' },
+        { value: 'confirmation', label: '✅ ยืนยันการจอง' },
+        { value: 'thank_you', label: '🙏 ขอบคุณ' },
+        { value: 'custom', label: '📝 กำหนดเอง' },
+      ]},
+      { name: 'scheduled_date', label: 'วันที่กำหนดส่ง', type: 'date', required: true },
+      { name: 'channel', label: 'ช่องทาง', type: 'select', options: [
+        { value: 'line', label: '💬 LINE' },
+        { value: 'email', label: '📧 Email' },
+        { value: 'sms', label: '📱 SMS' },
+      ]},
+      { name: 'message_content', label: 'ข้อความ', type: 'textarea', placeholder: 'ข้อความที่จะส่ง...' },
+      { name: 'status', label: 'สถานะ', type: 'select', options: [
+        { value: 'pending', label: '⏳ รอส่ง' },
+        { value: 'sent', label: '✅ ส่งแล้ว' },
+        { value: 'failed', label: '❌ ล้มเหลว' },
+      ]},
+      { name: 'sent_at', label: 'ส่งเมื่อ', type: 'datetime' },
+      { name: 'error_message', label: 'ข้อผิดพลาด', type: 'text' },
+    ],
+  },
+
+  // ==================== Quotations ====================
   {
     name: 'quotations',
     label: 'Quotations',
@@ -104,13 +232,38 @@ const TABLES: TableConfig[] = [
       { name: 'customer_name', label: 'ชื่อลูกค้า', type: 'text', required: true },
       { name: 'operator_name', label: 'บริษัทรถ', type: 'text' },
       { name: 'status', label: 'สถานะ', type: 'select', options: [
-        { value: 'draft', label: 'แบบร่าง' },
-        { value: 'sent', label: 'ส่งแล้ว' },
-        { value: 'confirmed', label: 'ยืนยันแล้ว' },
-        { value: 'completed', label: 'เสร็จสิ้น' },
+        { value: 'draft', label: '📝 แบบร่าง' },
+        { value: 'sent', label: '📤 ส่งแล้ว' },
+        { value: 'confirmed', label: '✅ ยืนยันแล้ว' },
+        { value: 'completed', label: '🏁 เสร็จสิ้น' },
       ]},
       { name: 'total_cost', label: 'ต้นทุน (¥)', type: 'number' },
       { name: 'total_selling', label: 'ราคาขาย (¥)', type: 'number' },
+      { name: 'profit', label: 'กำไร (¥)', type: 'number' },
+      { name: 'our_quotation_text', label: 'Quotation ที่ส่ง', type: 'textarea' },
+      { name: 'operator_response_text', label: 'ราคา Operator', type: 'textarea' },
+      { name: 'notes', label: 'หมายเหตุ', type: 'textarea' },
+    ],
+  },
+
+  // ==================== ผู้ใช้งาน ====================
+  {
+    name: 'users',
+    label: 'ผู้ใช้งาน',
+    icon: '👥',
+    fields: [
+      { name: 'email', label: 'Email', type: 'email', required: true, placeholder: 'email@company.com' },
+      { name: 'name', label: 'ชื่อ', type: 'text', required: true, placeholder: 'ชื่อผู้ใช้' },
+      { name: 'role', label: 'บทบาท', type: 'select', options: [
+        { value: 'admin', label: '👑 Admin' },
+        { value: 'manager', label: '👔 Manager' },
+        { value: 'staff', label: '👤 Staff' },
+      ]},
+      { name: 'is_active', label: 'สถานะ', type: 'select', options: [
+        { value: '1', label: '✅ ใช้งาน' },
+        { value: '0', label: '❌ ไม่ใช้งาน' },
+      ]},
+      { name: 'last_login_at', label: 'เข้าสู่ระบบล่าสุด', type: 'datetime' },
     ],
   },
 ];
@@ -133,11 +286,26 @@ export const DataManager: React.FC = () => {
   // Fetch data when table changes
   useEffect(() => {
     fetchData();
-    // Also fetch related data for display in table
     fetchRelatedDataForTable();
   }, [activeTable]);
 
-  // Fetch related data for displaying in table (customer names, etc.)
+  const fetchData = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/data/${activeTable}`);
+      if (!response.ok) throw new Error('Failed to fetch data');
+      const result = await response.json();
+      setData(result.data || []);
+    } catch (err) {
+      setError('ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch related data for displaying in table
   const fetchRelatedDataForTable = async () => {
     const relationFields = currentTable.fields.filter(f => f.type === 'relation' && f.relationTable);
     
@@ -168,22 +336,6 @@ export const DataManager: React.FC = () => {
     const items = relatedData[field.relationTable] || [];
     const item = items.find((i: any) => i.id === Number(id));
     return item ? item[field.relationLabelField || 'name'] : `ID: ${id}`;
-  };
-
-  const fetchData = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/data/${activeTable}`);
-      if (!response.ok) throw new Error('Failed to fetch data');
-      const result = await response.json();
-      setData(result.data || []);
-    } catch (err) {
-      setError('ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่');
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   // Fetch related data for relation fields
@@ -299,7 +451,11 @@ export const DataManager: React.FC = () => {
 
   const renderFieldInput = (field: FieldConfig) => {
     const value = formData[field.name] || '';
-    const baseClasses = "w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all";
+    const baseClasses = "w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all text-sm";
+
+    if (field.type === 'readonly') {
+      return <div className="px-3 py-2 bg-gray-100 rounded-lg text-sm text-gray-600">{value || '-'}</div>;
+    }
 
     switch (field.type) {
       case 'textarea':
@@ -318,6 +474,7 @@ export const DataManager: React.FC = () => {
             value={value}
             onChange={(e) => handleInputChange(field.name, e.target.value)}
             className={baseClasses}
+            required={field.required}
           >
             <option value="">-- เลือก --</option>
             {field.options?.map(opt => (
@@ -342,18 +499,47 @@ export const DataManager: React.FC = () => {
             ))}
           </select>
         );
+      case 'datetime':
+        return (
+          <input
+            type="datetime-local"
+            value={value ? value.replace(' ', 'T').slice(0, 16) : ''}
+            onChange={(e) => handleInputChange(field.name, e.target.value.replace('T', ' '))}
+            className={baseClasses}
+            required={field.required}
+          />
+        );
       default:
         return (
           <input
             type={field.type}
             value={value}
-            onChange={(e) => handleInputChange(field.name, field.type === 'number' ? Number(e.target.value) : e.target.value)}
+            onChange={(e) => handleInputChange(field.name, field.type === 'number' ? (e.target.value ? Number(e.target.value) : '') : e.target.value)}
             placeholder={field.placeholder}
             required={field.required}
             className={baseClasses}
           />
         );
     }
+  };
+
+  // Format cell value for display
+  const formatCellValue = (field: FieldConfig, value: any) => {
+    if (value === null || value === undefined || value === '') return '-';
+    
+    if (field.type === 'select') {
+      return field.options?.find(o => o.value === String(value))?.label || value;
+    }
+    
+    if (field.type === 'relation') {
+      return getRelatedItemName(field, value);
+    }
+
+    if (field.type === 'number' && field.name.includes('price') || field.name.includes('amount') || field.name.includes('cost') || field.name.includes('selling') || field.name.includes('profit')) {
+      return `¥${Number(value).toLocaleString()}`;
+    }
+
+    return value;
   };
 
   return (
@@ -403,7 +589,7 @@ export const DataManager: React.FC = () => {
                 )}
               >
                 <span>{table.icon}</span>
-                <span>{table.label}</span>
+                <span className="hidden sm:inline">{table.label}</span>
               </button>
             ))}
           </div>
@@ -416,7 +602,7 @@ export const DataManager: React.FC = () => {
           </h2>
           <button
             onClick={openCreateForm}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium transition-colors text-sm"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -447,12 +633,11 @@ export const DataManager: React.FC = () => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">ID</th>
-                  {currentTable.fields.slice(0, 4).map(field => (
+                  {currentTable.fields.slice(0, 5).map(field => (
                     <th key={field.name} className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">
                       {field.label}
                     </th>
                   ))}
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">สร้างเมื่อ</th>
                   <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase">จัดการ</th>
                 </tr>
               </thead>
@@ -460,19 +645,11 @@ export const DataManager: React.FC = () => {
                 {data.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm text-gray-500">#{item.id}</td>
-                    {currentTable.fields.slice(0, 4).map(field => (
-                      <td key={field.name} className="px-4 py-3 text-sm text-gray-900">
-                        {field.type === 'select' 
-                          ? field.options?.find(o => o.value === item[field.name])?.label || item[field.name]
-                          : field.type === 'relation'
-                          ? getRelatedItemName(field, item[field.name])
-                          : item[field.name] || '-'
-                        }
+                    {currentTable.fields.slice(0, 5).map(field => (
+                      <td key={field.name} className="px-4 py-3 text-sm text-gray-900 max-w-[200px] truncate">
+                        {formatCellValue(field, item[field.name])}
                       </td>
                     ))}
-                    <td className="px-4 py-3 text-sm text-gray-500">
-                      {item.created_at ? new Date(item.created_at).toLocaleDateString('th-TH') : '-'}
-                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">
                         <button
@@ -522,7 +699,7 @@ export const DataManager: React.FC = () => {
             ></div>
 
             {/* Modal */}
-            <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg mx-auto z-10 animate-fadeIn">
+            <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-auto z-10 animate-fadeIn">
               {/* Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
                 <h3 className="text-lg font-bold text-gray-900">
@@ -541,15 +718,17 @@ export const DataManager: React.FC = () => {
               {/* Form */}
               <form onSubmit={handleSubmit}>
                 <div className="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
-                  {currentTable.fields.map(field => (
-                    <div key={field.name}>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        {field.label}
-                        {field.required && <span className="text-red-500 ml-1">*</span>}
-                      </label>
-                      {renderFieldInput(field)}
-                    </div>
-                  ))}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {currentTable.fields.map(field => (
+                      <div key={field.name} className={field.type === 'textarea' ? 'md:col-span-2' : ''}>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          {field.label}
+                          {field.required && <span className="text-red-500 ml-1">*</span>}
+                        </label>
+                        {renderFieldInput(field)}
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Footer */}
@@ -592,4 +771,3 @@ export const DataManager: React.FC = () => {
     </div>
   );
 };
-
