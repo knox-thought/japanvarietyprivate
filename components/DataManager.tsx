@@ -13,10 +13,13 @@ interface TableConfig {
 interface FieldConfig {
   name: string;
   label: string;
-  type: 'text' | 'number' | 'email' | 'tel' | 'date' | 'textarea' | 'select';
+  type: 'text' | 'number' | 'email' | 'tel' | 'date' | 'textarea' | 'select' | 'relation';
   required?: boolean;
   options?: { value: string; label: string }[];
   placeholder?: string;
+  // For relation type
+  relationTable?: string;
+  relationLabelField?: string;
 }
 
 const TABLES: TableConfig[] = [
@@ -63,7 +66,7 @@ const TABLES: TableConfig[] = [
     label: 'การจอง',
     icon: '📅',
     fields: [
-      { name: 'customer_id', label: 'รหัสลูกค้า', type: 'number', required: true },
+      { name: 'customer_id', label: 'ลูกค้า', type: 'relation', required: true, relationTable: 'customers', relationLabelField: 'name' },
       { name: 'booking_code', label: 'รหัสการจอง', type: 'text', required: true, placeholder: 'BK-2024-001' },
       { name: 'travel_start_date', label: 'วันเริ่มเดินทาง', type: 'date', required: true },
       { name: 'travel_end_date', label: 'วันสิ้นสุด', type: 'date', required: true },
@@ -122,13 +125,49 @@ export const DataManager: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [relatedData, setRelatedData] = useState<Record<string, any[]>>({});
 
   const currentTable = TABLES.find(t => t.name === activeTable)!;
 
   // Fetch data when table changes
   useEffect(() => {
     fetchData();
+    // Also fetch related data for display in table
+    fetchRelatedDataForTable();
   }, [activeTable]);
+
+  // Fetch related data for displaying in table (customer names, etc.)
+  const fetchRelatedDataForTable = async () => {
+    const relationFields = currentTable.fields.filter(f => f.type === 'relation' && f.relationTable);
+    
+    const promises = relationFields.map(async (field) => {
+      try {
+        const response = await fetch(`/api/data/${field.relationTable}`);
+        if (response.ok) {
+          const result = await response.json();
+          return { table: field.relationTable!, data: result.data || [] };
+        }
+      } catch (err) {
+        console.error(`Failed to fetch ${field.relationTable}:`, err);
+      }
+      return { table: field.relationTable!, data: [] };
+    });
+
+    const results = await Promise.all(promises);
+    const newRelatedData: Record<string, any[]> = {};
+    results.forEach(r => {
+      if (r) newRelatedData[r.table] = r.data;
+    });
+    setRelatedData(prev => ({ ...prev, ...newRelatedData }));
+  };
+
+  // Helper to get related item name
+  const getRelatedItemName = (field: FieldConfig, id: number | string) => {
+    if (field.type !== 'relation' || !field.relationTable) return id;
+    const items = relatedData[field.relationTable] || [];
+    const item = items.find((i: any) => i.id === Number(id));
+    return item ? item[field.relationLabelField || 'name'] : `ID: ${id}`;
+  };
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -146,15 +185,42 @@ export const DataManager: React.FC = () => {
     }
   };
 
-  const openCreateForm = () => {
+  // Fetch related data for relation fields
+  const fetchRelatedData = async () => {
+    const relationFields = currentTable.fields.filter(f => f.type === 'relation' && f.relationTable);
+    
+    const promises = relationFields.map(async (field) => {
+      try {
+        const response = await fetch(`/api/data/${field.relationTable}`);
+        if (response.ok) {
+          const result = await response.json();
+          return { table: field.relationTable!, data: result.data || [] };
+        }
+      } catch (err) {
+        console.error(`Failed to fetch ${field.relationTable}:`, err);
+      }
+      return { table: field.relationTable!, data: [] };
+    });
+
+    const results = await Promise.all(promises);
+    const newRelatedData: Record<string, any[]> = {};
+    results.forEach(r => {
+      if (r) newRelatedData[r.table] = r.data;
+    });
+    setRelatedData(newRelatedData);
+  };
+
+  const openCreateForm = async () => {
     setEditingItem(null);
     setFormData({});
+    await fetchRelatedData();
     setIsFormOpen(true);
   };
 
-  const openEditForm = (item: any) => {
+  const openEditForm = async (item: any) => {
     setEditingItem(item);
     setFormData({ ...item });
+    await fetchRelatedData();
     setIsFormOpen(true);
   };
 
@@ -255,6 +321,23 @@ export const DataManager: React.FC = () => {
             <option value="">-- เลือก --</option>
             {field.options?.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        );
+      case 'relation':
+        const relationItems = relatedData[field.relationTable || ''] || [];
+        return (
+          <select
+            value={value}
+            onChange={(e) => handleInputChange(field.name, e.target.value ? Number(e.target.value) : '')}
+            className={baseClasses}
+            required={field.required}
+          >
+            <option value="">-- เลือก{field.label} --</option>
+            {relationItems.map((item: any) => (
+              <option key={item.id} value={item.id}>
+                {item[field.relationLabelField || 'name']} (ID: {item.id})
+              </option>
             ))}
           </select>
         );
@@ -380,6 +463,8 @@ export const DataManager: React.FC = () => {
                       <td key={field.name} className="px-4 py-3 text-sm text-gray-900">
                         {field.type === 'select' 
                           ? field.options?.find(o => o.value === item[field.name])?.label || item[field.name]
+                          : field.type === 'relation'
+                          ? getRelatedItemName(field, item[field.name])
                           : item[field.name] || '-'
                         }
                       </td>
