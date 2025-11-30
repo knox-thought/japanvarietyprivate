@@ -19,29 +19,35 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Handle URL hash for routing
+  // Handle URL routing (clean URLs without #)
   useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash;
-      if (hash === '#/admin' || hash === '#/admin/dashboard') {
+    const handleRouteChange = () => {
+      const path = window.location.pathname;
+      if (path === '/admin' || path === '/admin/dashboard') {
         setPage('admin-dashboard');
-      } else if (hash === '#/admin/processor') {
+      } else if (path === '/admin/processor') {
         setPage('admin-processor');
       } else {
         setPage('main');
       }
     };
 
-    handleHashChange();
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    handleRouteChange();
+    window.addEventListener('popstate', handleRouteChange);
+    return () => window.removeEventListener('popstate', handleRouteChange);
   }, []);
+
+  // Navigation helper for clean URLs
+  const navigateTo = (path: string) => {
+    window.history.pushState({}, '', path);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
 
   const handleAdminPageChange = (adminPage: AdminPage) => {
     if (adminPage === 'dashboard') {
-      window.location.hash = '#/admin/dashboard';
+      navigateTo('/admin/dashboard');
     } else if (adminPage === 'processor') {
-      window.location.hash = '#/admin/processor';
+      navigateTo('/admin/processor');
     }
   };
 
@@ -147,8 +153,8 @@ function App() {
         </div>
 
         {/* Admin Link */}
-        <a
-          href="#/admin"
+        <button
+          onClick={() => navigateTo('/admin')}
           className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -156,7 +162,7 @@ function App() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
           <span className="hidden sm:inline">Admin</span>
-        </a>
+        </button>
       </nav>
 
       <main className="relative z-10 container mx-auto px-4 pt-12 pb-20">

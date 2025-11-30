@@ -61,15 +61,18 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ currentPage, onPageCha
           </div>
 
           {/* Back to Main Site */}
-          <a
-            href="#/"
+          <button
+            onClick={() => {
+              window.history.pushState({}, '', '/');
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
             <span className="hidden sm:inline">กลับหน้าหลัก</span>
-          </a>
+          </button>
         </div>
 
         {/* Tab Navigation */}
