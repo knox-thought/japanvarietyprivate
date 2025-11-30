@@ -73,9 +73,11 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
       },
     });
 
-    // Get public URL (assuming R2 public bucket or custom domain)
-    const r2PublicUrl = env.R2_PUBLIC_URL || `https://pub-${env.R2_BUCKET_NAME}.r2.dev`;
-    const publicUrl = `${r2PublicUrl}/${filename}`;
+    // Get public URL
+    // Use our API endpoint to serve files from R2
+    // This works regardless of R2 public access settings
+    const baseUrl = new URL(request.url).origin;
+    const publicUrl = `${baseUrl}/api/r2/${filename}`;
 
     return new Response(
       JSON.stringify({
