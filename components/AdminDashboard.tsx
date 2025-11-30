@@ -27,6 +27,7 @@ export const AdminDashboard: React.FC = () => {
   });
   const [recentQuotations, setRecentQuotations] = useState<RecentQuotation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -56,6 +57,27 @@ export const AdminDashboard: React.FC = () => {
       console.error('Failed to fetch dashboard data:', err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const deleteQuotation = async (id: number) => {
+    if (!confirm('ต้องการลบ Quotation นี้ใช่ไหม?')) return;
+    
+    setDeletingId(id);
+    try {
+      const response = await fetch(`/api/delete-quotation?id=${id}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        fetchData(); // Refresh the list
+      } else {
+        alert('ลบไม่สำเร็จ กรุณาลองใหม่');
+      }
+    } catch (err) {
+      console.error('Failed to delete quotation:', err);
+      alert('ลบไม่สำเร็จ กรุณาลองใหม่');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -242,6 +264,7 @@ export const AdminDashboard: React.FC = () => {
                   <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">ต้นทุน</th>
                   <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">ราคาขาย</th>
                   <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">กำไร</th>
+                  <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -264,6 +287,30 @@ export const AdminDashboard: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-amber-600 font-medium">
                       {formatCurrency(q.profit)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <button
+                        onClick={() => deleteQuotation(q.id)}
+                        disabled={deletingId === q.id}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 hover:text-white hover:bg-red-500 rounded-md border border-red-200 hover:border-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {deletingId === q.id ? (
+                          <>
+                            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            กำลังลบ...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            ลบ
+                          </>
+                        )}
+                      </button>
                     </td>
                   </tr>
                 ))}
