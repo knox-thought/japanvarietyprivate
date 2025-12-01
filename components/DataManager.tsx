@@ -239,6 +239,7 @@ const TABLES: TableConfig[] = [
       { name: 'total_cost', label: 'ต้นทุน (¥)', type: 'number' },
       { name: 'total_selling', label: 'ราคาขาย (¥)', type: 'number' },
       { name: 'profit', label: 'กำไร (¥)', type: 'number' },
+      { name: 'days_data', label: 'ข้อมูลรายวัน (JSON)', type: 'textarea', hidden: true }, // Hidden in form but shown in detail view
       { name: 'our_quotation_text', label: 'Quotation ที่ส่ง', type: 'textarea' },
       { name: 'operator_response_text', label: 'ราคา Operator', type: 'textarea' },
       { name: 'notes', label: 'หมายเหตุ', type: 'textarea' },
@@ -912,6 +913,9 @@ export const DataManager: React.FC = () => {
                     const value = detailItem[field.name];
                     const displayValue = formatCellValue(field, value);
 
+                    // Skip hidden fields in detail view only if they're empty
+                    if (field.hidden && !value) return null;
+
                     if (field.type === 'image' && value) {
                       return (
                         <div key={field.name} className="md:col-span-2">
@@ -940,6 +944,27 @@ export const DataManager: React.FC = () => {
                       );
                     }
 
+                    // Handle JSON fields (like days_data)
+                    if (field.name === 'days_data' && value) {
+                      try {
+                        const jsonData = typeof value === 'string' ? JSON.parse(value) : value;
+                        return (
+                          <div key={field.name} className="md:col-span-2">
+                            <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">
+                              {field.label}
+                            </label>
+                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                              <pre className="text-xs text-gray-700 overflow-x-auto whitespace-pre-wrap">
+                                {JSON.stringify(jsonData, null, 2)}
+                              </pre>
+                            </div>
+                          </div>
+                        );
+                      } catch (e) {
+                        // If not valid JSON, show as textarea
+                      }
+                    }
+
                     if (field.type === 'textarea' && value) {
                       return (
                         <div key={field.name} className="md:col-span-2">
@@ -964,6 +989,21 @@ export const DataManager: React.FC = () => {
                       </div>
                     );
                   })}
+                  
+                  {/* Show any additional fields that might not be in the config */}
+                  {Object.keys(detailItem).filter(key => 
+                    !currentTable.fields.find(f => f.name === key) && 
+                    !['id', 'created_at', 'updated_at', 'deleted_at'].includes(key)
+                  ).map(key => (
+                    <div key={key}>
+                      <label className="block text-sm font-bold text-gray-700 mb-1 uppercase tracking-wide">
+                        {key.replace(/_/g, ' ')}
+                      </label>
+                      <div className="text-gray-900 font-medium">
+                        {typeof detailItem[key] === 'object' ? JSON.stringify(detailItem[key], null, 2) : String(detailItem[key] || '-')}
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
                 {/* Metadata */}
