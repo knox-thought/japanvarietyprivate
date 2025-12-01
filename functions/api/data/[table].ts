@@ -9,7 +9,6 @@ const ALLOWED_TABLES = [
   'car_companies', 
   'bookings', 
   'car_bookings',
-  'itineraries',
   'payments',
   'notifications',
   'quotations', 

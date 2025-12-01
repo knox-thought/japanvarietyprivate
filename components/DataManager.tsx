@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import { ImageUpload } from './ImageUpload';
 
-type TableName = 'customers' | 'car_companies' | 'bookings' | 'car_bookings' | 'itineraries' | 'payments' | 'notifications' | 'quotations' | 'users';
+type TableName = 'customers' | 'car_companies' | 'bookings' | 'car_bookings' | 'payments' | 'notifications' | 'quotations' | 'users';
 
 interface TableConfig {
   name: TableName;
@@ -119,6 +119,7 @@ const TABLES: TableConfig[] = [
         { value: 'cancelled', label: '❌ ยกเลิก' },
       ]},
       { name: 'route_quotation', label: 'Quotation เส้นทาง', type: 'textarea', placeholder: 'รายละเอียดเส้นทาง...' },
+      { name: 'itinerary_data', label: 'แผนการเดินทาง (JSON)', type: 'textarea', placeholder: '{"days": [...]}' },
       { name: 'notes', label: 'หมายเหตุ', type: 'textarea' },
     ],
   },
@@ -153,26 +154,6 @@ const TABLES: TableConfig[] = [
         { value: 'cancelled', label: '❌ ยกเลิก' },
       ]},
       { name: 'notes', label: 'หมายเหตุ', type: 'textarea' },
-    ],
-  },
-
-  // ==================== แผนการเดินทาง ====================
-  {
-    name: 'itineraries',
-    label: 'แผนเดินทาง',
-    icon: '🗺️',
-    fields: [
-      { name: 'booking_id', label: 'การจอง', type: 'relation', required: true, relationTable: 'bookings', relationLabelField: 'booking_code' },
-      { name: 'version', label: 'Version', type: 'number', placeholder: '1' },
-      { name: 'trip_title', label: 'ชื่อทริป', type: 'text', placeholder: 'Japan Winter Trip 2024' },
-      { name: 'summary', label: 'สรุป', type: 'textarea', placeholder: 'สรุปแผนการเดินทาง...' },
-      { name: 'vehicle_recommendation', label: 'รถแนะนำ', type: 'text', placeholder: 'Alphard, Coaster...' },
-      { name: 'quotation_text', label: 'Quotation Text', type: 'textarea', placeholder: 'ข้อความ quotation...' },
-      { name: 'full_itinerary_json', label: 'Itinerary JSON', type: 'textarea', placeholder: '{"days": [...]}' },
-      { name: 'is_final', label: 'Final', type: 'select', options: [
-        { value: '0', label: '📝 แบบร่าง' },
-        { value: '1', label: '✅ Final' },
-      ]},
     ],
   },
 
@@ -452,7 +433,46 @@ export const DataManager: React.FC = () => {
         throw new Error(errorData.error || 'Failed to save');
       }
 
-      showSuccess(editingItem ? 'อัพเดทข้อมูลสำเร็จ!' : 'เพิ่มข้อมูลสำเร็จ!');
+      const savedData = await response.json();
+      const savedId = savedData.id || (editingItem ? editingItem.id : null);
+
+      // If this is a booking with route_quotation, generate car_bookings automatically
+      if (
+        activeTable === 'bookings' && 
+        savedId && 
+        formData.route_quotation && 
+        formData.route_quotation.trim()
+      ) {
+        try {
+          const generateResponse = await fetch('/api/generate-car-bookings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              bookingId: savedId,
+              quotationText: formData.route_quotation,
+            }),
+          });
+
+          if (generateResponse.ok) {
+            const generateData = await generateResponse.json();
+            showSuccess(
+              editingItem 
+                ? 'อัพเดทข้อมูลสำเร็จ! สร้างการจองรถอัตโนมัติแล้ว' 
+                : `เพิ่มข้อมูลสำเร็จ! สร้างการจองรถ ${generateData.insertedIds?.length || 0} รายการอัตโนมัติแล้ว`
+            );
+          } else {
+            // Booking saved but car bookings generation failed
+            showSuccess(editingItem ? 'อัพเดทข้อมูลสำเร็จ!' : 'เพิ่มข้อมูลสำเร็จ! (ไม่สามารถสร้างการจองรถอัตโนมัติได้)');
+          }
+        } catch (generateErr) {
+          // Booking saved but car bookings generation failed
+          console.error('Error generating car bookings:', generateErr);
+          showSuccess(editingItem ? 'อัพเดทข้อมูลสำเร็จ!' : 'เพิ่มข้อมูลสำเร็จ! (ไม่สามารถสร้างการจองรถอัตโนมัติได้)');
+        }
+      } else {
+        showSuccess(editingItem ? 'อัพเดทข้อมูลสำเร็จ!' : 'เพิ่มข้อมูลสำเร็จ!');
+      }
+
       closeForm();
       fetchData();
     } catch (err) {
