@@ -57,7 +57,7 @@ export const onRequestPut = async ({ params, request, env }: { params: { id: str
     const updates: string[] = [];
     const values: any[] = [];
 
-    if (body.name !== undefined) { updates.push('name = ?'); values.push(body.name); }
+    if (body.name !== undefined) { updates.push('name = ?'); values.push(body.name || null); }
     if (body.phone !== undefined) { updates.push('phone = ?'); values.push(body.phone); }
     if (body.email !== undefined) { updates.push('email = ?'); values.push(body.email); }
     if (body.line_user_id !== undefined) { updates.push('line_user_id = ?'); values.push(body.line_user_id); }

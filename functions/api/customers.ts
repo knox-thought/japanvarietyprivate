@@ -49,18 +49,11 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
       notes?: string;
     };
 
-    if (!body.name) {
-      return new Response(JSON.stringify({ success: false, error: 'Name is required' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      });
-    }
-
     const result = await env.DB.prepare(`
       INSERT INTO customers (name, phone, email, line_user_id, line_display_name, source, notes)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).bind(
-      body.name,
+      body.name || null,
       body.phone || null,
       body.email || null,
       body.line_user_id || null,

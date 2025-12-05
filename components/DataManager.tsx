@@ -47,7 +47,7 @@ const TABLES: TableConfig[] = [
     label: 'ลูกค้า',
     icon: '👤',
     fields: [
-      { name: 'name', label: 'ชื่อ', type: 'text', required: true, placeholder: 'ชื่อลูกค้า' },
+      { name: 'name', label: 'ชื่อ', type: 'text', placeholder: 'ชื่อลูกค้า' },
       { name: 'phone', label: 'เบอร์โทร', type: 'tel', placeholder: '08x-xxx-xxxx' },
       { name: 'email', label: 'Email', type: 'email', placeholder: 'email@example.com' },
       { name: 'line_user_id', label: 'LINE User ID', type: 'text', placeholder: 'U1234...' },
@@ -727,11 +727,30 @@ export const DataManager: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {data.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm text-gray-500">#{item.id}</td>
+                {data.map((item) => {
+                  // Check if this is a payment and if it's unpaid (paid_at is null)
+                  const isUnpaidPayment = activeTable === 'payments' && !item.paid_at;
+                  
+                  return (
+                  <tr 
+                    key={item.id} 
+                    className={clsx(
+                      "hover:bg-gray-50",
+                      isUnpaidPayment && "bg-red-50 hover:bg-red-100"
+                    )}
+                  >
+                    <td className={clsx(
+                      "px-4 py-3 text-sm",
+                      isUnpaidPayment ? "text-red-600 font-semibold" : "text-gray-500"
+                    )}>#{item.id}</td>
                     {currentTable.fields.slice(0, 5).map(field => (
-                      <td key={field.name} className="px-4 py-3 text-sm text-gray-900 max-w-[200px] truncate">
+                      <td 
+                        key={field.name} 
+                        className={clsx(
+                          "px-4 py-3 text-sm max-w-[200px] truncate",
+                          isUnpaidPayment ? "text-red-700 font-medium" : "text-gray-900"
+                        )}
+                      >
                         {formatCellValue(field, item[field.name])}
                       </td>
                     ))}
@@ -776,7 +795,8 @@ export const DataManager: React.FC = () => {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
