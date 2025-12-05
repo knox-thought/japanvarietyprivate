@@ -222,10 +222,10 @@ const TABLES: TableConfig[] = [
     ],
   },
 
-  // ==================== Quotations ====================
+  // ==================== Quotation History ====================
   {
     name: 'quotations',
-    label: 'Quotations',
+    label: 'Quotation History',
     icon: '📋',
     fields: [
       { name: 'customer_name', label: 'ชื่อลูกค้า', type: 'text', required: true },
