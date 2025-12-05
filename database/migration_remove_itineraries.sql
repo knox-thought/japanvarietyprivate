@@ -1,11 +1,15 @@
 -- Migration: Remove itineraries table and add itinerary_data to bookings
 -- Date: 2025-01-XX
+-- Run this in Cloudflare D1 SQL Studio
 
--- Step 1: Add itinerary_data column to bookings table
+-- Step 1: Add itinerary_data column to bookings table (if not exists)
+-- Note: SQLite doesn't support IF NOT EXISTS for ALTER TABLE ADD COLUMN
+-- If column already exists, this will fail - that's okay, just skip this step
 ALTER TABLE bookings ADD COLUMN itinerary_data TEXT;
 
 -- Step 2: Migrate existing itinerary data to bookings (if any)
 -- This will copy the full_itinerary_json from itineraries to bookings.itinerary_data
+-- Only runs if itineraries table exists and has data
 UPDATE bookings 
 SET itinerary_data = (
   SELECT full_itinerary_json 
@@ -21,8 +25,6 @@ WHERE EXISTS (
 -- Step 3: Drop the itineraries table
 DROP TABLE IF EXISTS itineraries;
 
--- Note: After running this migration, update the application code to:
--- 1. Remove 'itineraries' from DataManager.tsx
--- 2. Add 'itinerary_data' field to bookings form in DataManager.tsx
--- 3. Create API endpoint to generate car_bookings from quotation using AI
+-- Verification: Check that itinerary_data column was added
+-- SELECT sql FROM sqlite_master WHERE type='table' AND name='bookings';
 

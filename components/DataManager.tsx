@@ -119,7 +119,6 @@ const TABLES: TableConfig[] = [
         { value: 'cancelled', label: '❌ ยกเลิก' },
       ]},
       { name: 'route_quotation', label: 'Quotation เส้นทาง', type: 'textarea', placeholder: 'รายละเอียดเส้นทาง...' },
-      { name: 'itinerary_data', label: 'แผนการเดินทาง (JSON)', type: 'textarea', placeholder: '{"days": [...]}' },
       { name: 'notes', label: 'หมายเหตุ', type: 'textarea' },
     ],
   },
