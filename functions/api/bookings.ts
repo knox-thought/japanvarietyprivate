@@ -25,6 +25,89 @@ const generateBookingCode = async (env: Env): Promise<string> => {
   return `JVS-${year}-${String(count).padStart(3, '0')}`;
 };
 
+// Generate payment records automatically based on booking payment type
+async function generatePaymentRecords(
+  env: Env,
+  bookingId: number,
+  paymentInfo: {
+    total_price: number;
+    currency: string;
+    deposit_amount?: number | null;
+    next_payment_amount?: number | null;
+    next_payment_due?: string | null;
+  }
+) {
+  const { total_price, currency, deposit_amount, next_payment_amount, next_payment_due } = paymentInfo;
+
+  // Check if it's installment payment (has deposit_amount or next_payment_amount)
+  const isInstallment = deposit_amount && deposit_amount > 0;
+
+  if (isInstallment) {
+    // Installment payment: Generate deposit + remaining payment(s)
+    
+    // 1. Deposit payment
+    await env.DB.prepare(`
+      INSERT INTO payments (
+        booking_id, payment_type, amount, currency, paid_at
+      ) VALUES (?, ?, ?, ?, NULL)
+    `).bind(
+      bookingId,
+      'deposit',
+      deposit_amount,
+      currency
+    ).run();
+
+    // 2. Calculate remaining amount
+    const remaining = total_price - deposit_amount;
+    
+    if (remaining > 0) {
+      // If next_payment_amount is specified, use it; otherwise use remaining amount
+      const paymentAmount = next_payment_amount && next_payment_amount > 0 
+        ? next_payment_amount 
+        : remaining;
+
+      // Create remaining payment record
+      await env.DB.prepare(`
+        INSERT INTO payments (
+          booking_id, payment_type, amount, currency, paid_at
+        ) VALUES (?, ?, ?, ?, NULL)
+      `).bind(
+        bookingId,
+        'partial',
+        paymentAmount,
+        currency
+      ).run();
+
+      // If there's still remaining after next_payment_amount, create additional payment
+      if (next_payment_amount && next_payment_amount > 0 && remaining > next_payment_amount) {
+        const finalRemaining = remaining - next_payment_amount;
+        await env.DB.prepare(`
+          INSERT INTO payments (
+            booking_id, payment_type, amount, currency, paid_at
+          ) VALUES (?, ?, ?, ?, NULL)
+        `).bind(
+          bookingId,
+          'partial',
+          finalRemaining,
+          currency
+        ).run();
+      }
+    }
+  } else {
+    // Full payment: Generate single payment record
+    await env.DB.prepare(`
+      INSERT INTO payments (
+        booking_id, payment_type, amount, currency, paid_at
+      ) VALUES (?, ?, ?, ?, NULL)
+    `).bind(
+      bookingId,
+      'full',
+      total_price,
+      currency
+    ).run();
+  }
+}
+
 // GET - List all bookings with customer info and payment summary
 export const onRequestGet = async ({ env }: { env: Env }) => {
   try {
@@ -87,8 +170,8 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
   try {
     const body = await request.json() as {
       customer_id: number;
-      travel_start_date: string;
-      travel_end_date: string;
+      travel_start_date?: string;
+      travel_end_date?: string;
       region?: string;
       pax_adults?: number;
       pax_children?: number;
@@ -103,10 +186,10 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
       notes?: string;
     };
 
-    if (!body.customer_id || !body.travel_start_date || !body.travel_end_date) {
+    if (!body.customer_id) {
       return new Response(JSON.stringify({ 
         success: false, 
-        error: 'customer_id, travel_start_date, and travel_end_date are required' 
+        error: 'customer_id is required' 
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
@@ -125,8 +208,8 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
     `).bind(
       body.customer_id,
       bookingCode,
-      body.travel_start_date,
-      body.travel_end_date,
+      body.travel_start_date || null,
+      body.travel_end_date || null,
       body.region || null,
       body.pax_adults || 0,
       body.pax_children || 0,
@@ -141,9 +224,27 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
       body.notes || null
     ).run();
 
+    const bookingId = result.meta.last_row_id;
+
+    // Auto-generate payment records if total_price is set
+    if (body.total_price && body.total_price > 0) {
+      try {
+        await generatePaymentRecords(env, bookingId, {
+          total_price: body.total_price,
+          currency: body.currency || 'THB',
+          deposit_amount: body.deposit_amount,
+          next_payment_amount: (body as any).next_payment_amount,
+          next_payment_due: (body as any).next_payment_due,
+        });
+      } catch (paymentError: any) {
+        console.error('Error generating payment records:', paymentError);
+        // Don't fail the booking creation if payment generation fails
+      }
+    }
+
     return new Response(JSON.stringify({ 
       success: true, 
-      id: result.meta.last_row_id,
+      id: bookingId,
       booking_code: bookingCode,
       message: 'Booking created successfully'
     }), {

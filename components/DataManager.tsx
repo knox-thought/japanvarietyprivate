@@ -93,8 +93,8 @@ const TABLES: TableConfig[] = [
     fields: [
       { name: 'customer_id', label: 'ลูกค้า', type: 'relation', required: true, relationTable: 'customers', relationLabelField: 'name' },
       { name: 'booking_code', label: 'รหัสการจอง', type: 'text', required: true, placeholder: 'BK-2024-001' },
-      { name: 'travel_start_date', label: 'วันเริ่มเดินทาง', type: 'date', required: true },
-      { name: 'travel_end_date', label: 'วันสิ้นสุด', type: 'date', required: true },
+      { name: 'travel_start_date', label: 'วันเริ่มเดินทาง', type: 'date' },
+      { name: 'travel_end_date', label: 'วันสิ้นสุด', type: 'date' },
       { name: 'region', label: 'พื้นที่', type: 'text', placeholder: 'Tokyo, Hakuba...' },
       { name: 'pax_adults', label: 'ผู้ใหญ่', type: 'number', placeholder: '0' },
       { name: 'pax_children', label: 'เด็ก 6-12', type: 'number', placeholder: '0' },
