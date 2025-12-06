@@ -16,12 +16,21 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({ plan, prefs, onRes
   const [refineNote, setRefineNote] = useState('');
 
   // Format quotation text: add an extra blank line between each service day
+  // Also remove "0 Children" patterns that AI sometimes generates
   const formattedQuotation = useMemo(() => {
     if (!plan?.quotationForOperator) return '';
 
+    // First, remove all "0 Children" patterns
+    let cleaned = plan.quotationForOperator
+      .replace(/\s*\+\s*0\s*Children\s*\([^)]*\)/gi, '')
+      .replace(/\s*\+\s*0\s*Children/gi, '')
+      .replace(/,\s*0\s*Children\s*\([^)]*\)/gi, '')
+      .replace(/,\s*0\s*Children/gi, '')
+      .replace(/\s+/g, ' ');
+
     // Normalize line endings and insert a blank line before each new date line (except the first).
     // More robust than regex replace when AI output format changes slightly.
-    const lines = plan.quotationForOperator.split(/\r?\n/);
+    const lines = cleaned.split(/\r?\n/);
     const out: string[] = [];
 
     for (const line of lines) {

@@ -75,7 +75,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
         estimatedDistanceKm: { type: Type.NUMBER, description: "Rough estimate of total driving distance" },
         quotationForOperator: { 
           type: Type.STRING, 
-          description: " STRICTLY ENGLISH ONLY. A formatted text block for price estimation. Format for each service day:\nDate [DD/MM/YYYY]\nService: [Charter (10 Hours) / Transfer (Pickup Only)] [Time Info]\n[Pax] Pax, [Luggage] Luggage\n[Car Type]\n[Route A -> B -> C]" 
+          description: "STRICTLY ENGLISH ONLY. A formatted text block for price estimation. Format for each service day:\nDate [DD/MM/YYYY]\nService: [Charter (10 Hours) / Transfer (Pickup Only)] [Time Info]\nPax: [X Adults] OR [X Adults + Y Children (0-6 yrs)] - ONLY include children if Y > 0. NEVER write '0 Children'. If no children, write only '[X] Adults'.\n[Luggage] Luggage\n[Car Type]\n[Route A -> B -> C]" 
         },
         itinerary: {
           type: Type.ARRAY,
@@ -244,7 +244,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
       Do NOT calculate your own time. Use the time given. This ensures guests arrive 2.5 hours before their flight.
 
       Logistics:
-      - Passengers: ${totalPax} total (${travelerConfig.adults} Adults, ${travelerConfig.toddlers} Children 0-6 years old).
+      - Passengers: ${totalPax} total (${travelerConfig.adults} Adults${travelerConfig.toddlers > 0 ? `, ${travelerConfig.toddlers} ${travelerConfig.toddlers === 1 ? 'Child' : 'Children'} 0-6 years old` : ''}).
       - Luggage: ${travelerConfig.suitcasesLarge} Large, ${travelerConfig.suitcasesSmall} Small.
       ${travelerConfig.toddlers > 0 ? `- IMPORTANT: There are ${travelerConfig.toddlers} children aged 0-6. Car seats are REQUIRED for all of them. Include child-friendly stops or ensure pace is suitable for young children.` : ""}
       
@@ -291,7 +291,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
       [Date DD/MM/YYYY]
       Service: [Charter (10 Hours) Start: HH:MM] OR [Transfer (Pickup Only) Pickup: HH:MM]
       - If no start/pickup time was specified, use "???" instead of the time
-      Pax: ${travelerConfig.adults} Adults + ${travelerConfig.toddlers} Children (0-6 yrs)${travelerConfig.toddlers > 0 ? ` - NEED ${travelerConfig.toddlers} CAR SEAT(S)` : ''}
+      Pax: ${travelerConfig.adults} Adults${travelerConfig.toddlers > 0 ? ` + ${travelerConfig.toddlers} ${travelerConfig.toddlers === 1 ? 'Child' : 'Children'} (0-6 yrs) - NEED ${travelerConfig.toddlers} CAR SEAT(S)` : ''}
       Luggage: [Total Luggage]
       Car: [Car Type Recommendation]
       Route: [Location A -> Location B -> Location C]
@@ -332,6 +332,23 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
     }
 
     const result = JSON.parse(text) as AIItineraryResponse;
+
+    // Post-process: ALWAYS remove "0 Children" from quotationForOperator
+    // Use simple string replacement as backup
+    if (result.quotationForOperator) {
+      // Direct string replacements - most reliable method
+      result.quotationForOperator = result.quotationForOperator
+        .split('+ 0 Children (0-6 yrs)').join('')
+        .split('+ 0 Children').join('')
+        .split('+0 Children (0-6 yrs)').join('')
+        .split('+0 Children').join('')
+        .split(', 0 Children (0-6 yrs)').join('')
+        .split(', 0 Children').join('')
+        .split('0 Children (0-6 yrs)').join('')
+        .split('0 Children').join('')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
 
     return new Response(
       JSON.stringify(result),
