@@ -63,6 +63,9 @@ export const QuotationProcessor: React.FC = () => {
   const [bookings, setBookings] = useState<BookingOption[]>([]);
   const [selectedBookingId, setSelectedBookingId] = useState<number | ''>('');
   const [isLoadingBookings, setIsLoadingBookings] = useState(false);
+  const [carCompanies, setCarCompanies] = useState<{ id: number; name: string }[]>([]);
+  const [isLoadingCarCompanies, setIsLoadingCarCompanies] = useState(false);
+  const [selectedCarCompanyId, setSelectedCarCompanyId] = useState<number | ''>('');
 
   const MARKUP_MULTIPLIER = 1.391; // 30% margin + 7% VAT
 
@@ -91,7 +94,7 @@ export const QuotationProcessor: React.FC = () => {
       const response = await fetch('/api/bookings?limit=50');
       if (response.ok) {
         const data = await response.json();
-        const bookingsList = (data.bookings || []).map((b: any) => ({
+        const bookingsList = (data.success && data.data ? data.data : []).map((b: any) => ({
           id: b.id,
           booking_code: b.booking_code || `Booking #${b.id}`,
           customer_name: b.customer_name || 'Unknown',
@@ -103,6 +106,37 @@ export const QuotationProcessor: React.FC = () => {
       console.error('Failed to fetch bookings:', err);
     } finally {
       setIsLoadingBookings(false);
+    }
+  };
+
+  // Fetch car companies for dropdown
+  const fetchCarCompanies = async () => {
+    setIsLoadingCarCompanies(true);
+    try {
+      const response = await fetch('/api/car-companies');
+      if (response.ok) {
+        const data = await response.json();
+        const companies = (data.success && data.data ? data.data : []).map((c: any) => ({
+          id: c.id,
+          name: c.name
+        }));
+        setCarCompanies(companies);
+      }
+    } catch (err) {
+      console.error('Failed to fetch car companies:', err);
+    } finally {
+      setIsLoadingCarCompanies(false);
+    }
+  };
+
+  // Handle car company selection
+  const handleCarCompanySelect = (companyId: number | '') => {
+    setSelectedCarCompanyId(companyId);
+    if (companyId) {
+      const selectedCompany = carCompanies.find(c => c.id === companyId);
+      setOperatorName(selectedCompany?.name || '');
+    } else {
+      setOperatorName('');
     }
   };
 
@@ -402,17 +436,37 @@ export const QuotationProcessor: React.FC = () => {
           )}
         </div>
 
-        {/* Operator Name */}
+        {/* Operator Name - Dropdown from car_companies table */}
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
           <label className="block text-sm font-bold text-gray-700 mb-2">
             ชื่อบริษัทรถ (Operator)
           </label>
+          <select
+            value={selectedCarCompanyId}
+            onChange={(e) => handleCarCompanySelect(e.target.value ? parseInt(e.target.value) : '')}
+            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:border-amber-500"
+            disabled={isLoadingCarCompanies}
+          >
+            <option value="">-- เลือกบริษัทรถ --</option>
+            {carCompanies.map((company) => (
+              <option key={company.id} value={company.id}>
+                {company.name}
+              </option>
+            ))}
+          </select>
+          {isLoadingCarCompanies && (
+            <p className="text-xs text-gray-500 mt-1">กำลังโหลด...</p>
+          )}
+          {/* Allow manual override with text input */}
           <input
             type="text"
             value={operatorName}
-            onChange={(e) => setOperatorName(e.target.value)}
-            placeholder="เช่น ABC Transport, XYZ Hire"
-            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:border-amber-500"
+            onChange={(e) => {
+              setOperatorName(e.target.value);
+              setSelectedCarCompanyId(''); // Clear selection if manually typing
+            }}
+            placeholder="หรือกรอกชื่อเอง"
+            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:border-amber-500 mt-2"
           />
         </div>
       </div>

@@ -119,6 +119,8 @@ const TABLES: TableConfig[] = [
         { value: 'cancelled', label: '❌ ยกเลิก' },
       ]},
       { name: 'route_quotation', label: 'Quotation เส้นทาง', type: 'textarea', placeholder: 'รายละเอียดเส้นทาง...' },
+      { name: 'cost_quotation', label: 'Quotation ต้นทุนจาก Operator (สำหรับคำนวณราคาขาย)', type: 'textarea', placeholder: 'เช่น Date:2026-02-15\n🚌Coaster\n👛180000yen+15000(Accommodation driver)+2000(Baby seat)\n\nระบบจะคำนวณราคาขาย (30% + VAT) อัตโนมัติไปใส่ที่ฟิลด์ "ราคารวม"' },
+      { name: 'cost_price', label: 'ราคาต้นทุน (Cost Price)', type: 'number', placeholder: '0', hidden: true },
       { name: 'notes', label: 'หมายเหตุ', type: 'textarea' },
     ],
   },
@@ -384,7 +386,7 @@ export const DataManager: React.FC = () => {
     setFormData({});
   };
 
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = async (field: string, value: any) => {
     setFormData(prev => {
       const updated = { ...prev, [field]: value };
 
@@ -405,6 +407,68 @@ export const DataManager: React.FC = () => {
 
       return updated;
     });
+
+    // Process cost_quotation when it's filled in bookings form
+    if (
+      activeTable === 'bookings' &&
+      field === 'cost_quotation' &&
+      value &&
+      value.trim()
+    ) {
+      processQuotationCost(value, formData.route_quotation || '');
+    }
+  };
+
+  // Process quotation cost and calculate selling price (30% + VAT)
+  const processQuotationCost = async (operatorResponse: string, ourQuotation: string) => {
+    try {
+      const response = await fetch('/api/process-quotation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          ourQuotation: ourQuotation || '', // Optional
+          operatorResponse: operatorResponse,
+          markupMultiplier: 1.3 // 30% margin only (VAT will be added separately)
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to process quotation');
+        return;
+      }
+
+      const data = await response.json();
+      
+      // Calculate selling prices: costPrice * 1.3 (30% margin), then round up to 1000
+      // VAT 7% will be added separately
+      const roundUpTo1000 = (price: number): number => {
+        return Math.ceil(price / 1000) * 1000;
+      };
+
+      const processedDays = data.days.map((day: any) => {
+        const withMargin = day.costPrice * 1.3;
+        return roundUpTo1000(withMargin);
+      });
+      
+      const totalSellingBeforeVAT = processedDays.reduce((sum: number, price: number) => sum + price, 0);
+      const vatAmount = Math.round(totalSellingBeforeVAT * 0.07);
+      const totalSellingWithVAT = totalSellingBeforeVAT + vatAmount;
+      
+      // Calculate total cost price
+      const totalCostPrice = data.totalCost || data.days.reduce((sum: number, day: any) => sum + day.costPrice, 0);
+
+      // Update form data with calculated prices
+      setFormData(prev => ({
+        ...prev,
+        total_price: totalSellingWithVAT,
+        cost_price: totalCostPrice
+      }));
+
+      showSuccess(`✅ คำนวณราคาขายสำเร็จ: ¥${totalSellingWithVAT.toLocaleString()} (ต้นทุน: ¥${totalCostPrice.toLocaleString()}, +30%: ¥${totalSellingBeforeVAT.toLocaleString()}, +VAT 7%: ¥${vatAmount.toLocaleString()})`);
+    } catch (err) {
+      console.error('Failed to process quotation cost:', err);
+      setError('ไม่สามารถคำนวณราคาขายได้ กรุณาลองใหม่');
+    }
   };
 
   const showSuccess = (message: string) => {
@@ -518,13 +582,16 @@ export const DataManager: React.FC = () => {
 
     switch (field.type) {
       case 'textarea':
+        // Special handling for cost_quotation - larger textarea
+        const rows = field.name === 'cost_quotation' ? 8 : 3;
         return (
           <textarea
             value={value}
             onChange={(e) => handleInputChange(field.name, e.target.value)}
             placeholder={field.placeholder}
-            rows={3}
+            rows={rows}
             className={baseClasses}
+            style={{ fontFamily: field.name === 'cost_quotation' ? 'monospace' : 'inherit' }}
           />
         );
       case 'select':
@@ -833,15 +900,29 @@ export const DataManager: React.FC = () => {
               <form onSubmit={handleSubmit}>
                 <div className="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {currentTable.fields.map(field => (
-                      <div key={field.name} className={field.type === 'textarea' ? 'md:col-span-2' : ''}>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          {field.label}
-                          {field.required && <span className="text-red-500 ml-1">*</span>}
-                        </label>
-                        {renderFieldInput(field)}
-                      </div>
-                    ))}
+                    {currentTable.fields.map(field => {
+                      // Skip hidden fields in form (but keep them in formData)
+                      if (field.hidden) {
+                        // Render as hidden input to preserve value
+                        return (
+                          <input
+                            key={field.name}
+                            type="hidden"
+                            value={formData[field.name] || ''}
+                            readOnly
+                          />
+                        );
+                      }
+                      return (
+                        <div key={field.name} className={field.type === 'textarea' ? 'md:col-span-2' : ''}>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            {field.label}
+                            {field.required && <span className="text-red-500 ml-1">*</span>}
+                          </label>
+                          {renderFieldInput(field)}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
