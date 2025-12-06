@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import clsx from 'clsx';
 import { ImageUpload } from './ImageUpload';
 
@@ -118,8 +118,8 @@ const TABLES: TableConfig[] = [
         { value: 'completed', label: '🏁 เสร็จสิ้น' },
         { value: 'cancelled', label: '❌ ยกเลิก' },
       ]},
-      { name: 'route_quotation', label: 'Quotation เส้นทาง', type: 'textarea', placeholder: 'รายละเอียดเส้นทาง...' },
-      { name: 'cost_quotation', label: 'Quotation ต้นทุนจาก Operator (สำหรับคำนวณราคาขาย)', type: 'textarea', placeholder: 'เช่น Date:2026-02-15\n🚌Coaster\n👛180000yen+15000(Accommodation driver)+2000(Baby seat)\n\nระบบจะคำนวณราคาขาย (30% + VAT) อัตโนมัติไปใส่ที่ฟิลด์ "ราคารวม"' },
+      { name: 'cost_quotation', label: 'Quotation ต้นทุนจาก Operator (สำหรับคำนวณราคาขาย)', type: 'textarea', placeholder: 'เช่น Date:2026-02-15\n🚌Coaster\n👛180000yen+15000(Accommodation driver)+2000(Baby seat)\n\nระบบจะคำนวณราคาขาย (30% + VAT) แจกแจงรายละเอียดอัตโนมัติไปใส่ที่ฟิลด์ "Quotation เส้นทาง" ด้านล่าง' },
+      { name: 'route_quotation', label: 'Quotation เส้นทาง (จะถูกเติมอัตโนมัติเมื่อกรอก Quotation ต้นทุนด้านบน)', type: 'textarea', placeholder: 'รายละเอียดเส้นทางพร้อมราคาแจกแจง (จะถูกเติมอัตโนมัติ)...' },
       { name: 'cost_price', label: 'ราคาต้นทุน (Cost Price)', type: 'number', placeholder: '0', hidden: true },
       { name: 'notes', label: 'หมายเหตุ', type: 'textarea' },
     ],
@@ -274,6 +274,7 @@ export const DataManager: React.FC = () => {
   const [data, setData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const costQuotationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [editingItem, setEditingItem] = useState<any | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -409,18 +410,85 @@ export const DataManager: React.FC = () => {
     });
 
     // Process cost_quotation when it's filled in bookings form
+    // Wait a bit to allow user to finish typing (debounce)
     if (
       activeTable === 'bookings' &&
       field === 'cost_quotation' &&
       value &&
       value.trim()
     ) {
-      processQuotationCost(value, formData.route_quotation || '');
+      // Clear previous timeout if user continues typing
+      if (costQuotationTimeoutRef.current) {
+        clearTimeout(costQuotationTimeoutRef.current);
+      }
+      
+      // Use setTimeout to debounce - wait 1.5 seconds after user stops typing
+      costQuotationTimeoutRef.current = setTimeout(async () => {
+        // Get updated formData (with the new value already set)
+        const updatedFormData = { ...formData, [field]: value };
+        await processQuotationCost(value, updatedFormData.route_quotation || '', updatedFormData);
+      }, 1500);
+    } else if (activeTable === 'bookings' && field === 'cost_quotation' && !value) {
+      // Clear timeout if field is cleared
+      if (costQuotationTimeoutRef.current) {
+        clearTimeout(costQuotationTimeoutRef.current);
+        costQuotationTimeoutRef.current = null;
+      }
     }
   };
 
-  // Process quotation cost and calculate selling price (30% + VAT)
-  const processQuotationCost = async (operatorResponse: string, ourQuotation: string) => {
+  // Generate output text similar to QuotationProcessor Output 1 (selling price breakdown)
+  const generateSellingPriceOutput = (data: any, customerName: string = '') => {
+    const roundUpTo1000 = (price: number): number => {
+      return Math.ceil(price / 1000) * 1000;
+    };
+
+    const formatPrice = (price: number, currency: string = '¥') => {
+      return `${currency}${price.toLocaleString()}`;
+    };
+
+    let output = customerName ? `${customerName}\n\n` : '';
+
+    // Process each day
+    data.days.forEach((day: any) => {
+      const priceBeforeVAT = roundUpTo1000(day.costPrice * 1.3);
+      const priceWithVAT = Math.round(priceBeforeVAT * 1.07);
+      
+      output += `${day.date}\n`;
+      output += `${day.vehicle}\n`;
+      output += `${day.serviceType}\n`;
+      if (day.route) output += `${day.route}\n`;
+      output += `ต้นทุน: ${formatPrice(day.costPrice, day.currency || '¥')}`;
+      if (day.costPriceNote) output += ` ${day.costPriceNote}`;
+      output += `\n`;
+      output += `+30%: ${formatPrice(Math.round(day.costPrice * 1.3), day.currency || '¥')} → ปัดขึ้น: ${formatPrice(priceBeforeVAT, day.currency || '¥')}\n`;
+      output += `💰 ราคาขาย (รวม VAT 7%): ${formatPrice(priceWithVAT, day.currency || '¥')}\n\n`;
+    });
+    
+    // Calculate totals
+    const totalSellingBeforeVAT = data.days.reduce((sum: number, day: any) => {
+      return sum + roundUpTo1000(day.costPrice * 1.3);
+    }, 0);
+    const vatAmount = Math.round(totalSellingBeforeVAT * 0.07);
+    const totalSellingWithVAT = totalSellingBeforeVAT + vatAmount;
+
+    output += `────────────────\n`;
+    output += `รวมก่อน VAT (30%): ${formatPrice(totalSellingBeforeVAT, '¥')}\n`;
+    output += `VAT 7%: ${formatPrice(vatAmount, '¥')}\n`;
+    output += `รวมทั้งหมด (รวม VAT): ${formatPrice(totalSellingWithVAT, '¥')}\n`;
+
+    if (data.notes && data.notes.length > 0) {
+      output += `\nหมายเหตุ:\n`;
+      data.notes.forEach((note: string) => {
+        output += `• ${note}\n`;
+      });
+    }
+
+    return output;
+  };
+
+  // Process quotation cost and generate selling price output to fill route_quotation
+  const processQuotationCost = async (operatorResponse: string, ourQuotation: string, currentFormData?: Record<string, any>) => {
     try {
       const response = await fetch('/api/process-quotation', {
         method: 'POST',
@@ -434,37 +502,43 @@ export const DataManager: React.FC = () => {
 
       if (!response.ok) {
         console.error('Failed to process quotation');
+        setError('ไม่สามารถประมวลผล Quotation ได้ กรุณาตรวจสอบรูปแบบข้อมูล');
         return;
       }
 
       const data = await response.json();
       
-      // Calculate selling prices: costPrice * 1.3 (30% margin), then round up to 1000
-      // VAT 7% will be added separately
-      const roundUpTo1000 = (price: number): number => {
-        return Math.ceil(price / 1000) * 1000;
-      };
-
-      const processedDays = data.days.map((day: any) => {
-        const withMargin = day.costPrice * 1.3;
-        return roundUpTo1000(withMargin);
-      });
-      
-      const totalSellingBeforeVAT = processedDays.reduce((sum: number, price: number) => sum + price, 0);
-      const vatAmount = Math.round(totalSellingBeforeVAT * 0.07);
-      const totalSellingWithVAT = totalSellingBeforeVAT + vatAmount;
-      
       // Calculate total cost price
       const totalCostPrice = data.totalCost || data.days.reduce((sum: number, day: any) => sum + day.costPrice, 0);
 
-      // Update form data with calculated prices
+      // Get customer name from currentFormData or formData if available, otherwise use data.customerName
+      const formDataToUse = currentFormData || formData;
+      const customerName = formDataToUse.customer_id && relatedData.customers 
+        ? relatedData.customers.find((c: any) => c.id === Number(formDataToUse.customer_id))?.name || data.customerName || ''
+        : data.customerName || '';
+
+      // Generate output text (like QuotationProcessor Output 1)
+      const outputText = generateSellingPriceOutput(data, customerName);
+
+      // Calculate totals for display
+      const roundUpTo1000 = (price: number): number => {
+        return Math.ceil(price / 1000) * 1000;
+      };
+      const totalSellingBeforeVAT = data.days.reduce((sum: number, day: any) => {
+        return sum + roundUpTo1000(day.costPrice * 1.3);
+      }, 0);
+      const vatAmount = Math.round(totalSellingBeforeVAT * 0.07);
+      const totalSellingWithVAT = totalSellingBeforeVAT + vatAmount;
+
+      // Update form data: fill route_quotation with output text and store cost_price
       setFormData(prev => ({
         ...prev,
-        total_price: totalSellingWithVAT,
-        cost_price: totalCostPrice
+        route_quotation: outputText,
+        cost_price: totalCostPrice,
+        total_price: totalSellingWithVAT // Still store total for reference
       }));
 
-      showSuccess(`✅ คำนวณราคาขายสำเร็จ: ¥${totalSellingWithVAT.toLocaleString()} (ต้นทุน: ¥${totalCostPrice.toLocaleString()}, +30%: ¥${totalSellingBeforeVAT.toLocaleString()}, +VAT 7%: ¥${vatAmount.toLocaleString()})`);
+      showSuccess(`✅ คำนวณราคาขายสำเร็จและเติมลง Quotation เส้นทางแล้ว (รวม: ¥${totalSellingWithVAT.toLocaleString()})`);
     } catch (err) {
       console.error('Failed to process quotation cost:', err);
       setError('ไม่สามารถคำนวณราคาขายได้ กรุณาลองใหม่');
