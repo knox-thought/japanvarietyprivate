@@ -334,20 +334,27 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
     const result = JSON.parse(text) as AIItineraryResponse;
 
     // Post-process: ALWAYS remove "0 Children" from quotationForOperator
-    // Use simple string replacement as backup
+    // Process line by line to preserve newline structure
     if (result.quotationForOperator) {
-      // Direct string replacements - most reliable method
-      result.quotationForOperator = result.quotationForOperator
-        .split('+ 0 Children (0-6 yrs)').join('')
-        .split('+ 0 Children').join('')
-        .split('+0 Children (0-6 yrs)').join('')
-        .split('+0 Children').join('')
-        .split(', 0 Children (0-6 yrs)').join('')
-        .split(', 0 Children').join('')
-        .split('0 Children (0-6 yrs)').join('')
-        .split('0 Children').join('')
-        .replace(/\s+/g, ' ')
-        .trim();
+      const lines = result.quotationForOperator.split(/\r?\n/);
+      const processedLines = lines.map(line => {
+        // Remove "0 Children" patterns from each line using regex
+        let cleaned = line
+          .replace(/\s*\+\s*0\s*Children\s*\([^)]*\)/gi, '')
+          .replace(/\s*\+\s*0\s*Children/gi, '')
+          .replace(/,\s*0\s*Children\s*\([^)]*\)/gi, '')
+          .replace(/,\s*0\s*Children/gi, '')
+          .replace(/\s*0\s*Children\s*\([^)]*\)/gi, '')
+          .replace(/\s*0\s*Children/gi, '');
+        
+        // Normalize multiple spaces to single space (but preserve newlines)
+        // Use [ ]+ instead of \s+ to only match spaces, not newlines
+        cleaned = cleaned.replace(/[ ]+/g, ' ').trim();
+        
+        return cleaned;
+      });
+      
+      result.quotationForOperator = processedLines.join('\n');
     }
 
     return new Response(
@@ -393,4 +400,3 @@ export const onRequestOptions = async () => {
     },
   });
 };
-

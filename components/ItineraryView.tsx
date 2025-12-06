@@ -20,20 +20,31 @@ export const ItineraryView: React.FC<ItineraryViewProps> = ({ plan, prefs, onRes
   const formattedQuotation = useMemo(() => {
     if (!plan?.quotationForOperator) return '';
 
-    // First, remove all "0 Children" patterns
-    let cleaned = plan.quotationForOperator
-      .replace(/\s*\+\s*0\s*Children\s*\([^)]*\)/gi, '')
-      .replace(/\s*\+\s*0\s*Children/gi, '')
-      .replace(/,\s*0\s*Children\s*\([^)]*\)/gi, '')
-      .replace(/,\s*0\s*Children/gi, '')
-      .replace(/\s+/g, ' ');
+    // Process line by line to preserve newline structure
+    // Split first, then process each line separately to keep newlines intact
+    const lines = plan.quotationForOperator.split(/\r?\n/);
+    const processedLines = lines.map(line => {
+      // Remove "0 Children" patterns from each line
+      let cleaned = line
+        .replace(/\s*\+\s*0\s*Children\s*\([^)]*\)/gi, '')
+        .replace(/\s*\+\s*0\s*Children/gi, '')
+        .replace(/,\s*0\s*Children\s*\([^)]*\)/gi, '')
+        .replace(/,\s*0\s*Children/gi, '')
+        .replace(/\s*0\s*Children\s*\([^)]*\)/gi, '')
+        .replace(/\s*0\s*Children/gi, '');
+      
+      // Normalize multiple spaces to single space (but preserve newlines)
+      // Use [ ]+ instead of \s+ to only match spaces, not newlines
+      cleaned = cleaned.replace(/[ ]+/g, ' ').trim();
+      
+      return cleaned;
+    });
 
     // Normalize line endings and insert a blank line before each new date line (except the first).
     // More robust than regex replace when AI output format changes slightly.
-    const lines = cleaned.split(/\r?\n/);
     const out: string[] = [];
 
-    for (const line of lines) {
+    for (const line of processedLines) {
       const trimmed = line.trim();
       const isDateLine = /^(\d{2}\/\d{2}\/\d{4}|Date\s+\d{2}\/\d{2}\/\d{4})/.test(trimmed);
 
