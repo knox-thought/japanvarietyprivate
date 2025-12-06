@@ -36,29 +36,40 @@ export const AdminDashboard: React.FC = () => {
   const fetchData = async () => {
     try {
       // Fetch bookings instead of quotations
-      const response = await fetch('/api/bookings?limit=50');
+      const response = await fetch('/api/bookings');
       if (response.ok) {
         const data = await response.json();
-        const bookings = data.bookings || [];
+        // Response format: { success: true, data: [...] }
+        const bookings = (data.success && data.data) ? data.data : [];
         
         // Calculate stats from bookings
         // Note: bookings may have cost_price and total_price (selling price)
-        // If cost_price doesn't exist, use total_price as selling and estimate cost
-        const totalCost = bookings.reduce((sum: number, b: any) => sum + (b.cost_price || 0), 0);
-        const totalSelling = bookings.reduce((sum: number, b: any) => sum + (b.total_price || 0), 0);
+        // If cost_price doesn't exist (null/undefined), treat as 0
+        const totalCost = bookings.reduce((sum: number, b: any) => {
+          const cost = b.cost_price ?? 0;
+          return sum + (typeof cost === 'number' ? cost : 0);
+        }, 0);
+        const totalSelling = bookings.reduce((sum: number, b: any) => {
+          const price = b.total_price ?? 0;
+          return sum + (typeof price === 'number' ? price : 0);
+        }, 0);
         const totalProfit = totalSelling - totalCost;
         
         // Map bookings to RecentQuotation format for display
-        const mappedQuotations: RecentQuotation[] = bookings.map((b: any) => ({
-          id: b.id,
-          customer_name: b.customer_name || '-',
-          operator_name: b.operator_name || undefined,
-          created_at: b.created_at,
-          status: b.status,
-          total_cost: b.cost_price || 0,
-          total_selling: b.total_price || 0,
-          profit: (b.total_price || 0) - (b.cost_price || 0),
-        }));
+        const mappedQuotations: RecentQuotation[] = bookings.map((b: any) => {
+          const cost = b.cost_price ?? 0;
+          const selling = b.total_price ?? 0;
+          return {
+            id: b.id,
+            customer_name: b.customer_name || '-',
+            operator_name: b.operator_name || undefined,
+            created_at: b.created_at,
+            status: b.status,
+            total_cost: typeof cost === 'number' ? cost : 0,
+            total_selling: typeof selling === 'number' ? selling : 0,
+            profit: (typeof selling === 'number' ? selling : 0) - (typeof cost === 'number' ? cost : 0),
+          };
+        });
         
         setStats({
           total: bookings.length,

@@ -108,23 +108,93 @@ async function generatePaymentRecords(
   }
 }
 
+// Helper function to check if cost_price column exists
+const checkCostPriceColumn = async (db: D1Database): Promise<boolean> => {
+  try {
+    const result = await db.prepare(`
+      SELECT name FROM pragma_table_info('bookings') WHERE name = 'cost_price'
+    `).first();
+    return !!result;
+  } catch {
+    return false;
+  }
+};
+
+// Helper function to auto-migrate cost_price column
+const ensureCostPriceColumn = async (db: D1Database): Promise<boolean> => {
+  try {
+    const exists = await checkCostPriceColumn(db);
+    if (!exists) {
+      await db.prepare(`ALTER TABLE bookings ADD COLUMN cost_price INTEGER`).run();
+      // Update existing bookings with estimated cost_price
+      await db.prepare(`
+        UPDATE bookings 
+        SET cost_price = CAST(total_price * 0.77 AS INTEGER) 
+        WHERE cost_price IS NULL 
+          AND total_price IS NOT NULL 
+          AND total_price > 0
+      `).run();
+      return true;
+    }
+    return false;
+  } catch (err: any) {
+    // Column might already exist or other error
+    if (err.message?.includes('duplicate column') || err.message?.includes('already exists')) {
+      return false;
+    }
+    throw err;
+  }
+};
+
 // GET - List all bookings with customer info and payment summary
 export const onRequestGet = async ({ env }: { env: Env }) => {
   try {
-    // Get all bookings
-    const { results: bookings } = await env.DB.prepare(`
-      SELECT 
-        b.id, b.booking_code, b.travel_start_date, b.travel_end_date,
-        b.region, b.pax_adults, b.pax_children, b.pax_toddlers,
-        b.cost_price, b.total_price, b.currency, b.deposit_amount, b.deposit_paid_at,
-        b.full_paid_at, b.status, b.route_quotation, b.notes, b.created_at,
-        b.next_payment_due, b.next_payment_amount,
-        c.name as customer_name, c.phone as customer_phone, c.email as customer_email
-      FROM bookings b
-      LEFT JOIN customers c ON b.customer_id = c.id
-      WHERE b.deleted_at IS NULL
-      ORDER BY b.travel_start_date DESC
-    `).all();
+    // Auto-migrate cost_price column if needed
+    try {
+      await ensureCostPriceColumn(env.DB);
+    } catch (migrationError) {
+      console.error('Migration warning (continuing anyway):', migrationError);
+    }
+
+    // Check if cost_price exists (after migration attempt)
+    const hasCostPrice = await checkCostPriceColumn(env.DB);
+    
+    // Get all bookings (with or without cost_price column)
+    let bookings: any[];
+    if (hasCostPrice) {
+      // Column exists, include it in SELECT
+      const { results } = await env.DB.prepare(`
+        SELECT 
+          b.id, b.booking_code, b.travel_start_date, b.travel_end_date,
+          b.region, b.pax_adults, b.pax_children, b.pax_toddlers,
+          b.cost_price, b.total_price, b.currency, b.deposit_amount, b.deposit_paid_at,
+          b.full_paid_at, b.status, b.route_quotation, b.notes, b.created_at,
+          b.next_payment_due, b.next_payment_amount,
+          c.name as customer_name, c.phone as customer_phone, c.email as customer_email
+        FROM bookings b
+        LEFT JOIN customers c ON b.customer_id = c.id
+        WHERE b.deleted_at IS NULL
+        ORDER BY b.travel_start_date DESC
+      `).all();
+      bookings = results || [];
+    } else {
+      // Column doesn't exist, select without it and set cost_price to null
+      const { results } = await env.DB.prepare(`
+        SELECT 
+          b.id, b.booking_code, b.travel_start_date, b.travel_end_date,
+          b.region, b.pax_adults, b.pax_children, b.pax_toddlers,
+          b.total_price, b.currency, b.deposit_amount, b.deposit_paid_at,
+          b.full_paid_at, b.status, b.route_quotation, b.notes, b.created_at,
+          b.next_payment_due, b.next_payment_amount,
+          c.name as customer_name, c.phone as customer_phone, c.email as customer_email
+        FROM bookings b
+        LEFT JOIN customers c ON b.customer_id = c.id
+        WHERE b.deleted_at IS NULL
+        ORDER BY b.travel_start_date DESC
+      `).all();
+      // Add null cost_price to each booking
+      bookings = (results || []).map((b: any) => ({ ...b, cost_price: null }));
+    }
 
     // Get payment totals for each booking
     const { results: paymentTotals } = await env.DB.prepare(`
