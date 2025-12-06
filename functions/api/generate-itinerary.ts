@@ -259,7 +259,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
         * Comfortably seats 5–6 guests.
         * Luggage guideline: about 3–4 suitcases (24”) OR 2–3 suitcases (28”).
         * Best for small families or groups that want extra comfort.
-      - Toyota Hiace Grand Cabin (Van):
+      - Toyota Hiace (Van):
         * Comfortably seats up to 9 guests.
         * Luggage guideline: about 7–9 suitcases (24”) OR 5–7 suitcases (28”).
         * Suitable for medium-size groups with normal luggage.
