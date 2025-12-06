@@ -116,7 +116,7 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
       SELECT 
         b.id, b.booking_code, b.travel_start_date, b.travel_end_date,
         b.region, b.pax_adults, b.pax_children, b.pax_toddlers,
-        b.total_price, b.currency, b.deposit_amount, b.deposit_paid_at,
+        b.cost_price, b.total_price, b.currency, b.deposit_amount, b.deposit_paid_at,
         b.full_paid_at, b.status, b.route_quotation, b.notes, b.created_at,
         b.next_payment_due, b.next_payment_amount,
         c.name as customer_name, c.phone as customer_phone, c.email as customer_email

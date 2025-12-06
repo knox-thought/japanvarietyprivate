@@ -35,23 +35,38 @@ export const AdminDashboard: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const response = await fetch('/api/quotations?limit=10');
+      // Fetch bookings instead of quotations
+      const response = await fetch('/api/bookings?limit=50');
       if (response.ok) {
         const data = await response.json();
-        const quotations = data.quotations || [];
+        const bookings = data.bookings || [];
         
-        // Calculate stats
-        const totalCost = quotations.reduce((sum: number, q: RecentQuotation) => sum + q.total_cost, 0);
-        const totalSelling = quotations.reduce((sum: number, q: RecentQuotation) => sum + q.total_selling, 0);
-        const totalProfit = quotations.reduce((sum: number, q: RecentQuotation) => sum + q.profit, 0);
+        // Calculate stats from bookings
+        // Note: bookings may have cost_price and total_price (selling price)
+        // If cost_price doesn't exist, use total_price as selling and estimate cost
+        const totalCost = bookings.reduce((sum: number, b: any) => sum + (b.cost_price || 0), 0);
+        const totalSelling = bookings.reduce((sum: number, b: any) => sum + (b.total_price || 0), 0);
+        const totalProfit = totalSelling - totalCost;
+        
+        // Map bookings to RecentQuotation format for display
+        const mappedQuotations: RecentQuotation[] = bookings.map((b: any) => ({
+          id: b.id,
+          customer_name: b.customer_name || '-',
+          operator_name: b.operator_name || undefined,
+          created_at: b.created_at,
+          status: b.status,
+          total_cost: b.cost_price || 0,
+          total_selling: b.total_price || 0,
+          profit: (b.total_price || 0) - (b.cost_price || 0),
+        }));
         
         setStats({
-          total: data.total || quotations.length,
+          total: bookings.length,
           totalCost,
           totalSelling,
           totalProfit,
         });
-        setRecentQuotations(quotations);
+        setRecentQuotations(mappedQuotations.slice(0, 10)); // Show latest 10
       }
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err);
@@ -61,11 +76,13 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const deleteQuotation = async (id: number) => {
-    if (!confirm('ต้องการลบ Quotation นี้ใช่ไหม?')) return;
+    // Note: Bookings should not be deleted from dashboard
+    // This is kept for compatibility but bookings deletion should be handled differently
+    if (!confirm('ต้องการลบ Booking นี้ใช่ไหม? (ไม่แนะนำ)')) return;
     
     setDeletingId(id);
     try {
-      const response = await fetch(`/api/delete-quotation?id=${id}`, {
+      const response = await fetch(`/api/bookings/${id}`, {
         method: 'DELETE',
       });
       if (response.ok) {
@@ -74,7 +91,7 @@ export const AdminDashboard: React.FC = () => {
         alert('ลบไม่สำเร็จ กรุณาลองใหม่');
       }
     } catch (err) {
-      console.error('Failed to delete quotation:', err);
+      console.error('Failed to delete booking:', err);
       alert('ลบไม่สำเร็จ กรุณาลองใหม่');
     } finally {
       setDeletingId(null);
@@ -108,16 +125,16 @@ export const AdminDashboard: React.FC = () => {
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900 font-serif">Dashboard</h1>
-        <p className="text-gray-500 mt-1">ภาพรวมระบบ Quotation</p>
+        <p className="text-gray-500 mt-1">ภาพรวมการจองและราคาจาก Bookings</p>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Quotations */}
+        {/* Total Bookings */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500">Quotations ทั้งหมด</p>
+              <p className="text-sm font-medium text-gray-500">Bookings ทั้งหมด</p>
               <p className="text-3xl font-bold text-gray-900 mt-1">{stats.total}</p>
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -231,10 +248,10 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Recent Quotations Table */}
+      {/* Recent Bookings Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-bold text-gray-900">Quotations ล่าสุด</h2>
+          <h2 className="text-lg font-bold text-gray-900">Bookings ล่าสุด (แสดงต้นทุนและราคาขาย)</h2>
         </div>
         
         {recentQuotations.length === 0 ? (
@@ -242,15 +259,15 @@ export const AdminDashboard: React.FC = () => {
             <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <p className="text-gray-500">ยังไม่มี Quotation</p>
+            <p className="text-gray-500">ยังไม่มี Booking</p>
             <button 
               onClick={() => {
-                window.history.pushState({}, '', '/admin/processor');
+                window.history.pushState({}, '', '/');
                 window.dispatchEvent(new PopStateEvent('popstate'));
               }}
               className="inline-block mt-4 text-amber-600 hover:text-amber-700 font-medium"
             >
-              สร้าง Quotation แรก →
+              สร้าง Booking แรก →
             </button>
           </div>
         ) : (

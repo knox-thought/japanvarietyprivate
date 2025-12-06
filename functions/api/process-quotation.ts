@@ -64,21 +64,31 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
     };
 
     const prompt = `
-You are a data extraction assistant. Parse the following two inputs and merge them:
+You are a data extraction assistant. Parse the following inputs and extract pricing information:
 
-INPUT 1 (Our Quotation to Operator):
-${ourQuotation}
-
-INPUT 2 (Operator's Price Response):
+${ourQuotation ? `INPUT 1 (Our Quotation to Operator - OPTIONAL):\n${ourQuotation}\n\n` : ''}INPUT 2 (Operator's Price Response - REQUIRED):
 ${operatorResponse}
 
 TASK:
-1. Extract the customer name from Input 1 (usually at the top)
-2. For each date/service in Input 1, find the matching price from Input 2
-3. Extract the cost price as a NUMBER (e.g., "180000yen" → 180000, "170000yen+5000yen" → 175000)
-4. If there are additional fees mentioned (like "+5000yen New Year Service Fee"), include them in costPriceNote
-5. Extract any important notes/conditions from the operator response (time restrictions, special arrangements, etc.)
-6. Currency is always "¥" for Japanese Yen
+1. ${ourQuotation ? 'Extract the customer name from Input 1 (usually at the top).' : 'Try to extract customer name from Input 2 if available, otherwise use "Unknown".'}
+2. For each date/service mentioned in Input 2, extract:
+   - Date in YYYY-MM-DD format
+   - Vehicle type
+   - Service type
+   - Route (if mentioned)
+   - Base cost price as a NUMBER
+3. CRITICAL PRICE PARSING - Handle dynamic add-ons:
+   - Parse patterns like: "180000yen" → costPrice: 180000
+   - Parse patterns like: "170000yen+15000(Accommodation driver)+2000(Baby seat)+5000yen(New Year fee)"
+     → costPrice: 192000 (sum of all: 170000+15000+2000+5000)
+     → costPriceNote: "+15000(Accommodation driver) +2000(Baby seat) +5000yen(New Year fee)"
+   - Parse patterns like: "170000yen+5000yen（New Year Service Fee）"
+     → costPrice: 175000
+     → costPriceNote: "+5000yen（New Year Service Fee）"
+   - IMPORTANT: Include ALL add-on amounts (in parentheses or after + sign) in the total costPrice
+   - The costPriceNote should list all add-ons clearly
+4. Extract any important operational notes/conditions from the operator response (time restrictions, special arrangements, etc.) into the notes array
+5. Currency is always "¥" for Japanese Yen
 
 IMPORTANT DATE PARSING RULES:
 - Dates should be output in YYYY-MM-DD format using CE (Christian Era / ค.ศ.) year
@@ -88,11 +98,11 @@ IMPORTANT DATE PARSING RULES:
 - If input year is 4-digit and < 2500, it's already CE
 - Example: "15/02/69" → "2026-02-15", "15/02/26" → "2026-02-15", "15/02/2569" → "2026-02-15"
 
-IMPORTANT:
-- Match dates carefully between Input 1 and Input 2
-- Parse ALL price components (base price + any additional fees) into the total costPrice
-- The costPriceNote should explain what makes up the price if there are multiple components
-- Extract operational notes (like vehicle arrangement times, restrictions) into the notes array
+IMPORTANT PRICE EXTRACTION:
+- Parse ALL price components including add-ons: base price + all additional fees = total costPrice
+- Common add-on patterns: +15000(Accommodation driver), +2000(Baby seat), +5000yen(New Year fee)
+- If there are multiple add-ons, sum them all and include descriptions in costPriceNote
+- The costPrice MUST be the TOTAL (base + all add-ons)
 
 Return valid JSON matching the schema.
 `;

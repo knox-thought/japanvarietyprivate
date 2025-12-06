@@ -40,6 +40,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
       notes,
       ourQuotationText,
       operatorResponseText,
+      status = 'draft', // Default to 'draft', can be 'confirmed' when saved from Output 2
     } = data;
 
     const profit = totalSelling - totalCost;
@@ -48,6 +49,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
       INSERT INTO quotations (
         customer_name,
         operator_name,
+        status,
         total_cost,
         total_selling,
         profit,
@@ -55,10 +57,11 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
         notes,
         our_quotation_text,
         operator_response_text
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       customerName,
       operatorName || null,
+      status,
       totalCost,
       totalSelling,
       profit,

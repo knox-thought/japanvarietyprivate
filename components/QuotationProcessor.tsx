@@ -10,6 +10,7 @@ interface ProcessedDay {
   costPrice: number;
   costPriceNote?: string;
   sellingPrice: number;
+  sellingPriceBeforeVAT?: number;
   currency: string;
 }
 
@@ -18,6 +19,8 @@ interface ProcessedQuotation {
   days: ProcessedDay[];
   totalCost: number;
   totalSelling: number;
+  totalSellingBeforeVAT?: number;
+  vatAmount?: number;
   notes: string[];
 }
 
@@ -37,6 +40,13 @@ const roundUpTo1000 = (price: number): number => {
   return Math.ceil(price / 1000) * 1000;
 };
 
+interface BookingOption {
+  id: number;
+  booking_code: string;
+  customer_name: string;
+  route_quotation: string | null;
+}
+
 export const QuotationProcessor: React.FC = () => {
   const [input1, setInput1] = useState('');
   const [input2, setInput2] = useState('');
@@ -50,6 +60,9 @@ export const QuotationProcessor: React.FC = () => {
   const [savedQuotations, setSavedQuotations] = useState<SavedQuotation[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [bookings, setBookings] = useState<BookingOption[]>([]);
+  const [selectedBookingId, setSelectedBookingId] = useState<number | ''>('');
+  const [isLoadingBookings, setIsLoadingBookings] = useState(false);
 
   const MARKUP_MULTIPLIER = 1.391; // 30% margin + 7% VAT
 
@@ -68,7 +81,45 @@ export const QuotationProcessor: React.FC = () => {
 
   useEffect(() => {
     fetchQuotations();
+    fetchBookings();
   }, []);
+
+  // Fetch bookings for dropdown
+  const fetchBookings = async () => {
+    setIsLoadingBookings(true);
+    try {
+      const response = await fetch('/api/bookings?limit=50');
+      if (response.ok) {
+        const data = await response.json();
+        const bookingsList = (data.bookings || []).map((b: any) => ({
+          id: b.id,
+          booking_code: b.booking_code || `Booking #${b.id}`,
+          customer_name: b.customer_name || 'Unknown',
+          route_quotation: b.route_quotation || null
+        }));
+        setBookings(bookingsList);
+      }
+    } catch (err) {
+      console.error('Failed to fetch bookings:', err);
+    } finally {
+      setIsLoadingBookings(false);
+    }
+  };
+
+  // Handle booking selection - load quotation text to Input 1
+  const handleBookingSelect = (bookingId: number | '') => {
+    setSelectedBookingId(bookingId);
+    if (bookingId) {
+      const selectedBooking = bookings.find(b => b.id === bookingId);
+      if (selectedBooking?.route_quotation) {
+        setInput1(selectedBooking.route_quotation);
+      } else {
+        setInput1('');
+      }
+    } else {
+      setInput1('');
+    }
+  };
 
   const deleteQuotation = async (id: number) => {
     if (!confirm('ต้องการลบ Quotation นี้ใช่ไหม?')) return;
@@ -92,8 +143,9 @@ export const QuotationProcessor: React.FC = () => {
   };
 
   const processQuotation = async () => {
-    if (!input1.trim() || !input2.trim()) {
-      setError('กรุณากรอกข้อมูลทั้ง 2 ช่อง');
+    // Input 1 is now optional, only Input 2 is required
+    if (!input2.trim()) {
+      setError('กรุณากรอก Input 2: ราคาที่ Operator ตอบกลับมา');
       return;
     }
 
@@ -106,9 +158,9 @@ export const QuotationProcessor: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          ourQuotation: input1, 
+          ourQuotation: input1.trim() || '', // Optional, can be empty
           operatorResponse: input2,
-          markupMultiplier: MARKUP_MULTIPLIER
+          markupMultiplier: 1.3 // 30% margin only (VAT will be added separately)
         }),
       });
 
@@ -118,18 +170,28 @@ export const QuotationProcessor: React.FC = () => {
 
       const data = await response.json();
       
-      // Apply rounding up to nearest 1000 yen for selling prices
-      const processedDays = data.days.map((day: ProcessedDay) => ({
-        ...day,
-        sellingPrice: roundUpTo1000(day.costPrice * MARKUP_MULTIPLIER)
-      }));
+      // Calculate selling prices: costPrice * 1.3 (30% margin), then round up to 1000
+      // VAT 7% will be added separately in Output 1
+      const processedDays = data.days.map((day: ProcessedDay) => {
+        const withMargin = day.costPrice * 1.3;
+        const sellingPriceRounded = roundUpTo1000(withMargin);
+        return {
+          ...day,
+          sellingPrice: sellingPriceRounded,
+          sellingPriceBeforeVAT: sellingPriceRounded // For Output 1 calculation
+        };
+      });
       
-      const totalSelling = processedDays.reduce((sum: number, day: ProcessedDay) => sum + day.sellingPrice, 0);
+      const totalSellingBeforeVAT = processedDays.reduce((sum: number, day: any) => sum + day.sellingPrice, 0);
+      const vatAmount = Math.round(totalSellingBeforeVAT * 0.07);
+      const totalSellingWithVAT = totalSellingBeforeVAT + vatAmount;
       
       setResult({
         ...data,
         days: processedDays,
-        totalSelling
+        totalSelling: totalSellingWithVAT,
+        totalSellingBeforeVAT,
+        vatAmount
       });
     } catch (err) {
       setError('เกิดข้อผิดพลาดในการประมวลผล กรุณาลองใหม่อีกครั้ง');
@@ -186,18 +248,37 @@ export const QuotationProcessor: React.FC = () => {
 
     let output = `${result.customerName}\n\n`;
 
-    result.days.forEach(day => {
-      const price = type === 'cost' ? day.costPrice : day.sellingPrice;
-      output += `${day.date}\n`;
-      output += `${day.vehicle}\n`;
-      output += `${day.serviceType}\n`;
-      output += `${day.route}\n`;
-      output += `💰 ${formatPrice(price, day.currency)}${day.costPriceNote ? ` ${day.costPriceNote}` : ''}\n\n`;
-    });
+    if (type === 'selling') {
+      // Output 1: Show selling price with calculation breakdown
+      result.days.forEach(day => {
+        const priceBeforeVAT = day.sellingPriceBeforeVAT || day.sellingPrice;
+        const priceWithVAT = Math.round(priceBeforeVAT * 1.07);
+        output += `${day.date}\n`;
+        output += `${day.vehicle}\n`;
+        output += `${day.serviceType}\n`;
+        output += `${day.route}\n`;
+        output += `ต้นทุน: ${formatPrice(day.costPrice, day.currency)}\n`;
+        output += `+30%: ${formatPrice(Math.round(day.costPrice * 1.3), day.currency)} → ปัดขึ้น: ${formatPrice(priceBeforeVAT, day.currency)}\n`;
+        output += `💰 ราคาขาย (รวม VAT 7%): ${formatPrice(priceWithVAT, day.currency)}\n\n`;
+      });
+      
+      output += `────────────────\n`;
+      output += `รวมก่อน VAT (30%): ${formatPrice(result.totalSellingBeforeVAT || result.totalSelling, '¥')}\n`;
+      output += `VAT 7%: ${formatPrice(result.vatAmount || 0, '¥')}\n`;
+      output += `รวมทั้งหมด (รวม VAT): ${formatPrice(result.totalSelling, '¥')}\n`;
+    } else {
+      // Output 2: Show cost price (Input 2)
+      result.days.forEach(day => {
+        output += `${day.date}\n`;
+        output += `${day.vehicle}\n`;
+        output += `${day.serviceType}\n`;
+        output += `${day.route}\n`;
+        output += `💰 ${formatPrice(day.costPrice, day.currency)}${day.costPriceNote ? ` ${day.costPriceNote}` : ''}\n\n`;
+      });
 
-    const total = type === 'cost' ? result.totalCost : result.totalSelling;
-    output += `────────────────\n`;
-    output += `รวมทั้งหมด: ${formatPrice(total, '¥')}\n`;
+      output += `────────────────\n`;
+      output += `รวมต้นทุน: ${formatPrice(result.totalCost, '¥')}\n`;
+    }
 
     if (result.notes.length > 0) {
       output += `\nหมายเหตุ:\n`;
@@ -293,29 +374,59 @@ export const QuotationProcessor: React.FC = () => {
         </div>
       )}
 
-      {/* Operator Name */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-        <label className="block text-sm font-bold text-gray-700 mb-2">
-          ชื่อบริษัทรถ (Operator)
-        </label>
-        <input
-          type="text"
-          value={operatorName}
-          onChange={(e) => setOperatorName(e.target.value)}
-          placeholder="เช่น ABC Transport, XYZ Hire"
-          className="w-full p-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:border-amber-500"
-        />
+      {/* Booking Selection & Operator Name */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Booking Selection */}
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+          <label className="block text-sm font-bold text-gray-700 mb-2">
+            เลือก Booking (เพื่อดึง Quotation Text)
+          </label>
+          <select
+            value={selectedBookingId}
+            onChange={(e) => handleBookingSelect(e.target.value ? parseInt(e.target.value) : '')}
+            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:border-amber-500"
+            disabled={isLoadingBookings}
+          >
+            <option value="">-- ไม่เลือก (กรอกเอง) --</option>
+            {bookings.map((booking) => (
+              <option key={booking.id} value={booking.id}>
+                {booking.booking_code} - {booking.customer_name}
+                {booking.route_quotation ? ' (มี Quotation)' : ' (ไม่มี Quotation)'}
+              </option>
+            ))}
+          </select>
+          {selectedBookingId && (
+            <p className="text-xs text-green-600 mt-2">
+              ✓ โหลด Quotation จาก Booking แล้ว
+            </p>
+          )}
+        </div>
+
+        {/* Operator Name */}
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+          <label className="block text-sm font-bold text-gray-700 mb-2">
+            ชื่อบริษัทรถ (Operator)
+          </label>
+          <input
+            type="text"
+            value={operatorName}
+            onChange={(e) => setOperatorName(e.target.value)}
+            placeholder="เช่น ABC Transport, XYZ Hire"
+            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:border-amber-500"
+          />
+        </div>
       </div>
 
       {/* Input Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Input 1: Our Quotation */}
+        {/* Input 1: Our Quotation (Optional) */}
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
           <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
             <h2 className="font-bold text-gray-800 flex items-center gap-2">
               <FileText className="w-5 h-5 text-amber-500" />
-              Input 1: Quotation ที่เราส่งให้ Operator
+              Input 1: Quotation ที่เราส่งให้ Operator (ไม่บังคับ - ไม่มีต้นทุน)
             </h2>
+            <p className="text-xs text-gray-500 mt-1">เลือก Booking ด้านบนเพื่อโหลด Quotation อัตโนมัติ หรือกรอกเองได้</p>
           </div>
           <textarea
             value={input1}
@@ -340,8 +451,9 @@ Pickup Hakuba Platinum (check-out 10:00) => Drop-off Mitsui Garden Premier`}
           <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
             <h2 className="font-bold text-gray-800 flex items-center gap-2">
               <Calculator className="w-5 h-5 text-amber-500" />
-              Input 2: ราคาที่ Operator ตอบกลับมา
+              Input 2: ราคาที่ Operator ตอบกลับมา (บังคับ) *
             </h2>
+            <p className="text-xs text-gray-500 mt-1">ระบบจะ parse add-ons อัตโนมัติ เช่น +15000(Accommodation driver) +2000(Baby seat)</p>
           </div>
           <textarea
             value={input2}
@@ -352,7 +464,7 @@ Pickup Hakuba Platinum (check-out 10:00) => Drop-off Mitsui Garden Premier`}
 
 Date:2026-02-21
 🚌Coaster
-👛170000yen+5000yen（New Year Service Fee）-drop off`}
+👛170000yen+15000(Accommodation driver)+2000(Baby seat)+5000yen（New Year Service Fee）-drop off`}
             className="w-full h-64 p-4 text-sm font-mono resize-none outline-none focus:ring-2 focus:ring-amber-500 focus:ring-inset"
           />
         </div>
@@ -385,12 +497,97 @@ Date:2026-02-21
       {/* Results */}
       {result && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Output 1: Cost Price */}
+          {/* Output 1: Selling Price with 30% + VAT 7% */}
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-green-50 px-4 py-3 border-b border-green-200 flex items-center justify-between">
+              <div>
+                <h2 className="font-bold text-green-800">
+                  Output 1: ราคาขาย (+30% ปัดขึ้น 000 + VAT 7%)
+                </h2>
+                <p className="text-xs text-green-600">ต้นทุน × 1.3 (30% margin) → ปัดขึ้นเป็น 000 → + VAT 7%</p>
+              </div>
+              <button
+                onClick={() => copyToClipboard('selling')}
+                className={clsx(
+                  "flex items-center gap-1 px-3 py-1.5 text-xs rounded-md font-medium transition-all",
+                  copiedOutput === 'selling'
+                    ? "bg-green-500 text-white"
+                    : "bg-green-100 text-green-700 hover:bg-green-200"
+                )}
+              >
+                {copiedOutput === 'selling' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                {copiedOutput === 'selling' ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+            <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
+              <div className="font-bold text-lg text-gray-900">{result.customerName}</div>
+              
+              {result.days.map((day, idx) => {
+                const priceBeforeVAT = day.sellingPriceBeforeVAT || Math.round((day.costPrice * 1.3) / 1000) * 1000;
+                const dayVAT = Math.round(priceBeforeVAT * 0.07);
+                const priceWithVAT = priceBeforeVAT + dayVAT;
+                return (
+                  <div key={idx} className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                    <div className="text-sm font-bold text-gray-900">{day.date}</div>
+                    <div className="text-xs text-gray-600">{day.vehicle} • {day.serviceType}</div>
+                    <div className="text-xs text-gray-500 mt-1">{day.route}</div>
+                    <div className="mt-2 space-y-1">
+                      <div className="text-xs text-gray-500">
+                        ต้นทุน: {formatPrice(day.costPrice, day.currency)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        +30%: {formatPrice(Math.round(day.costPrice * 1.3), day.currency)} → 
+                        ปัดขึ้น: {formatPrice(priceBeforeVAT, day.currency)}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        +VAT 7%: {formatPrice(dayVAT, day.currency)}
+                      </div>
+                      <div className="text-lg font-bold text-green-600 border-t pt-1 mt-1">
+                        รวม: {formatPrice(priceWithVAT, day.currency)}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <div className="border-t border-gray-200 pt-3 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-gray-700">รวมราคาก่อน VAT (30%):</span>
+                  <span className="text-lg font-bold text-green-600">
+                    {formatPrice(result.totalSellingBeforeVAT || result.totalSelling, '¥')}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600">VAT 7%:</span>
+                  <span className="font-medium text-gray-700">
+                    {formatPrice(result.vatAmount || 0, '¥')}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center border-t pt-2">
+                  <span className="font-bold text-gray-900">รวมทั้งหมด (รวม VAT):</span>
+                  <span className="text-xl font-bold text-green-600">
+                    {formatPrice(result.totalSelling, '¥')}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-sm text-gray-500 mt-1">
+                  <span>กำไร (ก่อน VAT):</span>
+                  <span className="font-medium text-amber-600">
+                    {formatPrice((result.totalSellingBeforeVAT || result.totalSelling) - result.totalCost, '¥')}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Output 2: Cost Price (Input 2) with Save Button */}
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
             <div className="bg-blue-50 px-4 py-3 border-b border-blue-200 flex items-center justify-between">
-              <h2 className="font-bold text-blue-800">
-                Output 1: ราคาต้นทุน (Cost)
-              </h2>
+              <div>
+                <h2 className="font-bold text-blue-800">
+                  Output 2: ราคาต้นทุน (Input 2)
+                </h2>
+                <p className="text-xs text-blue-600">ข้อมูลจาก Operator (พร้อมบันทึก Quotation History)</p>
+              </div>
               <button
                 onClick={() => copyToClipboard('cost')}
                 className={clsx(
@@ -440,62 +637,65 @@ Date:2026-02-21
                   ))}
                 </div>
               )}
-            </div>
-          </div>
 
-          {/* Output 2: Selling Price */}
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-            <div className="bg-green-50 px-4 py-3 border-b border-green-200 flex items-center justify-between">
-              <div>
-                <h2 className="font-bold text-green-800">
-                  Output 2: ราคาขาย (Selling)
-                </h2>
-                <p className="text-xs text-green-600">ต้นทุน × 1.391 (30% margin + 7% VAT)</p>
-              </div>
+              {/* Save to Quotation History Button */}
               <button
-                onClick={() => copyToClipboard('selling')}
+                onClick={async () => {
+                  if (!result) return;
+                  setIsSaving(true);
+                  setError(null);
+                  try {
+                    const response = await fetch('/api/save-quotation', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        customerName: result.customerName,
+                        operatorName: operatorName || null,
+                        totalCost: result.totalCost,
+                        totalSelling: result.totalSelling,
+                        days: result.days,
+                        notes: result.notes,
+                        ourQuotationText: input1 || '',
+                        operatorResponseText: input2,
+                        status: 'confirmed' // Set status as confirmed
+                      }),
+                    });
+                    if (response.ok) {
+                      setSaveSuccess(true);
+                      fetchQuotations();
+                      setTimeout(() => setSaveSuccess(false), 3000);
+                    } else {
+                      throw new Error('Failed to save');
+                    }
+                  } catch (err) {
+                    setError('บันทึกไม่สำเร็จ กรุณาลองใหม่');
+                  } finally {
+                    setIsSaving(false);
+                  }
+                }}
+                disabled={isSaving || saveSuccess}
                 className={clsx(
-                  "flex items-center gap-1 px-3 py-1.5 text-xs rounded-md font-medium transition-all",
-                  copiedOutput === 'selling'
-                    ? "bg-green-500 text-white"
-                    : "bg-green-100 text-green-700 hover:bg-green-200"
+                  "w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold text-white transition-all",
+                  saveSuccess
+                    ? "bg-green-500"
+                    : isSaving
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-blue-600 hover:bg-blue-700 shadow-lg"
                 )}
               >
-                {copiedOutput === 'selling' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                {copiedOutput === 'selling' ? 'Copied!' : 'Copy'}
+                {saveSuccess ? (
+                  <>
+                    <Check className="w-5 h-5" />
+                    บันทึกสำเร็จ! (Status: ยืนยันแล้ว)
+                  </>
+                ) : isSaving ? (
+                  'กำลังบันทึก...'
+                ) : (
+                  <>
+                    💾 บันทึกไป Quotation History (Status: ยืนยันแล้ว)
+                  </>
+                )}
               </button>
-            </div>
-            <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
-              <div className="font-bold text-lg text-gray-900">{result.customerName}</div>
-              
-              {result.days.map((day, idx) => (
-                <div key={idx} className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                  <div className="text-sm font-bold text-gray-900">{day.date}</div>
-                  <div className="text-xs text-gray-600">{day.vehicle} • {day.serviceType}</div>
-                  <div className="text-xs text-gray-500 mt-1">{day.route}</div>
-                  <div className="text-lg font-bold text-green-600 mt-2">
-                    {formatPrice(day.sellingPrice, day.currency)}
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    (ต้นทุน: {formatPrice(day.costPrice, day.currency)})
-                  </div>
-                </div>
-              ))}
-
-              <div className="border-t border-gray-200 pt-3">
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-gray-700">รวมราคาขาย:</span>
-                  <span className="text-xl font-bold text-green-600">
-                    {formatPrice(result.totalSelling, '¥')}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-sm text-gray-500 mt-1">
-                  <span>กำไร:</span>
-                  <span className="font-medium text-amber-600">
-                    {formatPrice(result.totalSelling - result.totalCost, '¥')}
-                  </span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
