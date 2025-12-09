@@ -692,11 +692,22 @@ export const DataManager: React.FC = () => {
             required={field.required}
           >
             <option value="">-- เลือก{field.label} --</option>
-            {relationItems.map((item: any) => (
-              <option key={item.id} value={item.id}>
-                {item[field.relationLabelField || 'name']} (ID: {item.id})
-              </option>
-            ))}
+            {relationItems.map((item: any) => {
+              // สำหรับ customers ใช้ line_display_name เป็นหลัก ถ้าไม่มีให้ใช้ name
+              let displayLabel: string;
+              if (field.relationTable === 'customers') {
+                displayLabel = (item.line_display_name && String(item.line_display_name).trim() !== '')
+                  ? String(item.line_display_name).trim()
+                  : (item.name || 'ไม่ระบุ');
+              } else {
+                displayLabel = item[field.relationLabelField || 'name'] || 'ไม่ระบุ';
+              }
+              return (
+                <option key={item.id} value={item.id}>
+                  {displayLabel} (ID: {item.id})
+                </option>
+              );
+            })}
           </select>
         );
       case 'datetime':
