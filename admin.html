@@ -1417,10 +1417,10 @@
     });
 
     async function openBookingModal(booking = null) {
-      // Load customers for dropdown
-      if (customersData.length === 0) {
-        const data = await apiCall('/customers');
-        if (data.success) customersData = data.data;
+      // Load customers for dropdown - โหลดใหม่ทุกครั้งเพื่อให้ได้ข้อมูลล่าสุด
+      const data = await apiCall('/customers');
+      if (data.success) {
+        customersData = data.data;
       }
       
       const select = document.getElementById('booking-customer');
