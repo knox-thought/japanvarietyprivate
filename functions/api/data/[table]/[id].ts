@@ -99,6 +99,27 @@ export const onRequestPut = async ({ request, env, params }: { request: Request;
     delete data.id;
     delete data.created_at;
 
+    // Special handling for customers table: use line_display_name as fallback for name
+    if (table === 'customers') {
+      // If name is being updated and is empty/null/undefined, use line_display_name as fallback
+      if (data.hasOwnProperty('name') && (!data.name || (typeof data.name === 'string' && data.name.trim() === ''))) {
+        // If name is being set to empty, check if we have line_display_name
+        if (data.line_display_name && typeof data.line_display_name === 'string' && data.line_display_name.trim() !== '') {
+          data.name = data.line_display_name.trim();
+        } else if (!data.hasOwnProperty('line_display_name')) {
+          // If name is empty but line_display_name is not being updated, get existing line_display_name
+          const existing = await db.prepare(`SELECT line_display_name FROM ${table} WHERE id = ?`).bind(parseInt(id)).first() as any;
+          if (existing && existing.line_display_name && existing.line_display_name.trim() !== '') {
+            data.name = existing.line_display_name.trim();
+          } else {
+            data.name = '';
+          }
+        } else {
+          data.name = '';
+        }
+      }
+    }
+
     const columns = Object.keys(data);
     const values = Object.values(data);
 

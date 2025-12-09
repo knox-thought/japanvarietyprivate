@@ -16,15 +16,19 @@ CREATE TABLE IF NOT EXISTS quotations (
 );
 
 -- Customers table
+-- Note: name can be empty string (will use line_display_name as fallback in application layer)
 CREATE TABLE IF NOT EXISTS customers (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
   email TEXT,
   phone TEXT,
   line_id TEXT,
+  line_display_name TEXT,
+  source TEXT,
   notes TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  deleted_at DATETIME
 );
 
 -- Car Companies (Operators) table

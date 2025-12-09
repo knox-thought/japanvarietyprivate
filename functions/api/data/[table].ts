@@ -93,6 +93,19 @@ export const onRequestPost = async ({ request, env, params }: { request: Request
     delete data.created_at;
     delete data.updated_at;
 
+    // Special handling for customers table: use line_display_name as fallback for name
+    if (table === 'customers') {
+      // If name is empty/null/undefined, use line_display_name as fallback
+      if (!data.name || (typeof data.name === 'string' && data.name.trim() === '')) {
+        if (data.line_display_name && typeof data.line_display_name === 'string' && data.line_display_name.trim() !== '') {
+          data.name = data.line_display_name.trim();
+        } else {
+          // If both are empty, use empty string (will be handled by database default or migration)
+          data.name = '';
+        }
+      }
+    }
+
     const columns = Object.keys(data);
     const values = Object.values(data);
     const placeholders = columns.map(() => '?').join(', ');
