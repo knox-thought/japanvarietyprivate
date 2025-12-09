@@ -1427,8 +1427,12 @@
       select.innerHTML = '<option value="">-- เลือกลูกค้า --</option>' + 
         customersData.map(c => {
           // ใช้ line_display_name เป็นหลัก ถ้าไม่มีหรือเป็นค่าว่างให้ใช้ name
-          const displayName = (c.line_display_name && c.line_display_name.trim() !== '') 
-            ? c.line_display_name 
+          // ตรวจสอบทั้ง null, undefined, และ string ว่าง
+          const hasLineDisplayName = c.line_display_name !== null && 
+                                     c.line_display_name !== undefined && 
+                                     String(c.line_display_name).trim() !== '';
+          const displayName = hasLineDisplayName 
+            ? String(c.line_display_name).trim() 
             : (c.name || 'ไม่ระบุ');
           return `<option value="${c.id}">${displayName} (ID: ${c.id})</option>`;
         }).join('');
