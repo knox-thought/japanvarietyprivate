@@ -1421,9 +1421,16 @@
       const data = await apiCall('/customers');
       if (data.success) {
         customersData = data.data;
+        // Debug: ตรวจสอบข้อมูลที่ได้รับ
+        console.log('Customers data loaded:', customersData);
       }
       
       const select = document.getElementById('booking-customer');
+      if (!select) {
+        console.error('booking-customer select element not found');
+        return;
+      }
+      
       select.innerHTML = '<option value="">-- เลือกลูกค้า --</option>' + 
         customersData.map(c => {
           // ใช้ line_display_name เป็นหลัก ถ้าไม่มีหรือเป็นค่าว่างให้ใช้ name
@@ -1434,6 +1441,17 @@
           const displayName = hasLineDisplayName 
             ? String(c.line_display_name).trim() 
             : (c.name || 'ไม่ระบุ');
+          
+          // Debug: ตรวจสอบแต่ละรายการ
+          if (c.id === 8) {
+            console.log('Customer ID 8:', {
+              name: c.name,
+              line_display_name: c.line_display_name,
+              hasLineDisplayName: hasLineDisplayName,
+              displayName: displayName
+            });
+          }
+          
           return `<option value="${c.id}">${displayName} (ID: ${c.id})</option>`;
         }).join('');
       
