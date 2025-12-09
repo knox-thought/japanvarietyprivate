@@ -1277,8 +1277,10 @@
     async function loadCustomers() {
       try {
         const data = await apiCall('/customers');
-        if (data.success) {
-          customersData = data.data;
+        // รองรับทั้งรูปแบบ { success, data } และ { data }
+        const payload = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
+        if (payload.length > 0) {
+          customersData = payload;
           renderCustomers();
         }
       } catch (err) {
@@ -1420,11 +1422,14 @@
     async function openBookingModal(booking = null) {
       // Load customers for dropdown - โหลดใหม่ทุกครั้งเพื่อให้ได้ข้อมูลล่าสุด
       const data = await apiCall('/customers');
-      if (data.success) {
+      // รองรับทั้งรูปแบบ { success, data } และ { data }
+      if (Array.isArray(data?.data)) {
         customersData = data.data;
-        // Debug: ตรวจสอบข้อมูลที่ได้รับ
-        console.log('Customers data loaded:', customersData);
+      } else if (Array.isArray(data)) {
+        customersData = data;
       }
+      // Debug: ตรวจสอบข้อมูลที่ได้รับ
+      console.log('Customers data loaded:', customersData);
       
       const select = document.getElementById('booking-customer');
       if (!select) {
