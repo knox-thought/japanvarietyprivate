@@ -28,7 +28,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
 
     // Get booking with quotation
     const { results: bookings } = await env.DB.prepare(`
-      SELECT b.*, c.name as customer_name
+      SELECT b.*, COALESCE(c.line_display_name, c.name) as customer_name
       FROM bookings b
       LEFT JOIN customers c ON b.customer_id = c.id
       WHERE b.id = ? AND b.deleted_at IS NULL

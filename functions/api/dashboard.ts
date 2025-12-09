@@ -46,7 +46,7 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
       SELECT 
         b.id, b.booking_code, b.travel_start_date, b.travel_end_date,
         b.status, b.total_price, b.currency,
-        c.name as customer_name
+        COALESCE(c.line_display_name, c.name) as customer_name
       FROM bookings b
       LEFT JOIN customers c ON b.customer_id = c.id
       WHERE b.deleted_at IS NULL 
@@ -61,7 +61,7 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
       SELECT 
         b.id, b.booking_code, b.travel_start_date, b.travel_end_date,
         b.status, b.total_price, b.currency, b.created_at,
-        c.name as customer_name
+        COALESCE(c.line_display_name, c.name) as customer_name
       FROM bookings b
       LEFT JOIN customers c ON b.customer_id = c.id
       WHERE b.deleted_at IS NULL

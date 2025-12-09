@@ -104,7 +104,7 @@ export const onRequestGet = async ({ params, env }: { params: { id: string }; en
     const { results } = await env.DB.prepare(`
       SELECT 
         b.*,
-        c.name as customer_name, c.phone as customer_phone, 
+        COALESCE(c.line_display_name, c.name) as customer_name, c.phone as customer_phone, 
         c.email as customer_email, c.line_display_name as customer_line
       FROM bookings b
       LEFT JOIN customers c ON b.customer_id = c.id

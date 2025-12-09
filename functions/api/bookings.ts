@@ -170,7 +170,7 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
           b.cost_price, b.total_price, b.currency, b.deposit_amount, b.deposit_paid_at,
           b.full_paid_at, b.status, b.route_quotation, b.notes, b.created_at,
           b.next_payment_due, b.next_payment_amount,
-          c.name as customer_name, c.phone as customer_phone, c.email as customer_email
+          COALESCE(c.line_display_name, c.name) as customer_name, c.phone as customer_phone, c.email as customer_email
         FROM bookings b
         LEFT JOIN customers c ON b.customer_id = c.id
         WHERE b.deleted_at IS NULL
@@ -186,7 +186,7 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
           b.total_price, b.currency, b.deposit_amount, b.deposit_paid_at,
           b.full_paid_at, b.status, b.route_quotation, b.notes, b.created_at,
           b.next_payment_due, b.next_payment_amount,
-          c.name as customer_name, c.phone as customer_phone, c.email as customer_email
+          COALESCE(c.line_display_name, c.name) as customer_name, c.phone as customer_phone, c.email as customer_email
         FROM bookings b
         LEFT JOIN customers c ON b.customer_id = c.id
         WHERE b.deleted_at IS NULL

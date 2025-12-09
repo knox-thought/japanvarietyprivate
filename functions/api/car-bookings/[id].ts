@@ -18,7 +18,7 @@ export const onRequestGet = async ({ params, env }: { params: { id: string }; en
       SELECT 
         cb.*,
         b.booking_code,
-        c.name as customer_name,
+        COALESCE(c.line_display_name, c.name) as customer_name,
         cc.name as company_name
       FROM car_bookings cb
       LEFT JOIN bookings b ON cb.booking_id = b.id

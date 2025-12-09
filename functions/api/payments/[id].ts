@@ -24,7 +24,7 @@ export const onRequestGet = async ({ params, env }: { params: { id: string }; en
         p.*,
         b.booking_code,
         b.total_price as booking_total,
-        c.name as customer_name,
+        COALESCE(c.line_display_name, c.name) as customer_name,
         u.name as verified_by_name
       FROM payments p
       LEFT JOIN bookings b ON p.booking_id = b.id
