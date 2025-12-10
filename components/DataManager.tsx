@@ -695,40 +695,44 @@ export const DataManager: React.FC = () => {
       return { output, totalPrice: calculatedTotal };
     } else {
       // Fallback: Simple format if no operatorResponse
-      data.days.forEach((day: any) => {
-        const calculatedPrice = calculateSellingPrice(day.costPrice);
-        output += `Date ${day.date}\n`;
-        output += `${day.vehicle || ''}\n`;
-        output += `${day.serviceType || ''}\n`;
-        if (day.route) output += `${day.route}\n`;
-        output += `${calculatedPrice}`;
-        if (day.costPriceNote) {
-          const calculatedNote = parseAndCalculatePrice(day.costPriceNote);
-          output += calculatedNote.replace(/^\d+/, '');
-        }
-        output += '\n\n';
-      });
-      
-      const totalSelling = data.days.reduce((sum: number, day: any) => {
-        return sum + calculateSellingPrice(day.costPrice);
-      }, 0);
-      output += `\n${totalSelling} in total\n`;
-      
-      if (data.notes && data.notes.length > 0) {
-        output += `\n`;
-        data.notes.forEach((note: string) => {
-          output += `${note}\n`;
+      if (data.days && Array.isArray(data.days) && data.days.length > 0) {
+        data.days.forEach((day: any) => {
+          const calculatedPrice = calculateSellingPrice(day.costPrice || 0);
+          output += `Date ${day.date || ''}\n`;
+          output += `${day.vehicle || ''}\n`;
+          output += `${day.serviceType || ''}\n`;
+          if (day.route) output += `${day.route}\n`;
+          output += `${calculatedPrice}`;
+          if (day.costPriceNote) {
+            const calculatedNote = parseAndCalculatePrice(day.costPriceNote);
+            output += calculatedNote.replace(/^\d+/, '');
+          }
+          output += '\n\n';
         });
+        
+        const totalSelling = data.days.reduce((sum: number, day: any) => {
+          return sum + calculateSellingPrice(day.costPrice || 0);
+        }, 0);
+        output += `\n${totalSelling} in total\n`;
+        
+        if (data.notes && data.notes.length > 0) {
+          output += `\n`;
+          data.notes.forEach((note: string) => {
+            output += `${note}\n`;
+          });
+        }
+        
+        return { output, totalPrice: totalSelling };
+      } else {
+        // If no days data and no operatorResponse, return empty output
+        return { output: '', totalPrice: 0 };
       }
-      
-      return { output, totalPrice: totalSelling };
     }
   };
 
   // Process quotation cost and generate selling price output to fill route_quotation
   const processQuotationCost = async (operatorResponse: string, ourQuotation: string, currentFormData?: Record<string, any>) => {
     try {
-      console.log('[DEBUG] processQuotationCost called', { operatorResponseLength: operatorResponse?.length, hasOurQuotation: !!ourQuotation });
       const response = await fetch('/api/process-quotation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -739,19 +743,32 @@ export const DataManager: React.FC = () => {
         }),
       });
 
-      console.log('[DEBUG] processQuotationCost response', { status: response.status, ok: response.ok });
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Failed to process quotation', { status: response.status, errorText: errorText.substring(0, 200) });
-        setError('ไม่สามารถประมวลผล Quotation ได้ กรุณาตรวจสอบรูปแบบข้อมูล');
+        let errorMessage = 'ไม่สามารถประมวลผล Quotation ได้';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.message || errorMessage;
+        } catch {
+          const errorText = await response.text();
+          if (errorText) {
+            errorMessage = errorText.substring(0, 200);
+          }
+        }
+        setError(`${errorMessage} (Status: ${response.status})`);
         return;
       }
 
       const data = await response.json();
-      console.log('[DEBUG] processQuotationCost got data', { hasDays: !!data.days, daysCount: data.days?.length, hasTotalCost: !!data.totalCost });
+      
+      // Validate data structure
+      if (!data || (!data.days && !data.totalCost)) {
+        console.error('[DEBUG] Invalid data structure from API', data);
+        setError('ข้อมูลที่ได้รับจาก API ไม่ถูกต้อง กรุณาลองใหม่');
+        return;
+      }
       
       // Calculate total cost price
-      const totalCostPrice = data.totalCost || data.days.reduce((sum: number, day: any) => sum + day.costPrice, 0);
+      const totalCostPrice = data.totalCost || (data.days ? data.days.reduce((sum: number, day: any) => sum + (day.costPrice || 0), 0) : 0);
 
       // Get customer name from currentFormData or formData if available, otherwise use data.customerName
       const formDataToUse = currentFormData || formData;
@@ -759,31 +776,29 @@ export const DataManager: React.FC = () => {
         ? relatedData.customers.find((c: any) => c.id === Number(formDataToUse.customer_id))?.name || data.customerName || ''
         : data.customerName || '';
 
-      console.log('[DEBUG] Generating selling price output', { customerName, hasOperatorResponse: !!operatorResponse, operatorResponseLength: operatorResponse?.length });
       // Generate output text (like QuotationProcessor Output 1)
       // Pass operatorResponse to preserve original format
       const { output: outputText, totalPrice: calculatedTotalPrice } = generateSellingPriceOutput(data, customerName, operatorResponse || '');
-      console.log('[DEBUG] Generated output', { outputLength: outputText?.length, totalPrice: calculatedTotalPrice });
+      
+      // Validate output
+      if (!outputText || outputText.trim().length === 0) {
+        console.error('[DEBUG] Generated output is empty', { hasOperatorResponse: !!operatorResponse, hasDays: !!data.days, daysCount: data.days?.length });
+        setError('ไม่สามารถสร้าง Quotation เส้นทางได้ กรุณาตรวจสอบข้อมูลที่กรอก');
+        return;
+      }
 
       // Update form data: fill route_quotation with output text and store cost_price
-      setFormData(prev => {
-        console.log('[DEBUG] Updating formData with route_quotation', { outputLength: outputText?.length, prevRouteQuotation: prev.route_quotation?.length });
-        return {
-          ...prev,
-          route_quotation: outputText,
-          cost_price: totalCostPrice,
-          total_price: calculatedTotalPrice // Use calculated total from generateSellingPriceOutput
-        };
-      });
+      setFormData(prev => ({
+        ...prev,
+        route_quotation: outputText,
+        cost_price: totalCostPrice,
+        total_price: calculatedTotalPrice // Use calculated total from generateSellingPriceOutput
+      }));
 
       showSuccess(`✅ คำนวณราคาขายสำเร็จและเติมลง Quotation เส้นทางแล้ว (รวม: ¥${calculatedTotalPrice.toLocaleString()})`);
     } catch (err) {
-      console.error('[DEBUG] Failed to process quotation cost:', err);
-      console.error('[DEBUG] Error details:', { 
-        errorMessage: err instanceof Error ? err.message : String(err),
-        errorStack: err instanceof Error ? err.stack : undefined
-      });
-      setError('ไม่สามารถคำนวณราคาขายได้ กรุณาลองใหม่');
+      console.error('Failed to process quotation cost:', err);
+      setError(`ไม่สามารถคำนวณราคาขายได้: ${err instanceof Error ? err.message : 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'}`);
     }
   };
 
