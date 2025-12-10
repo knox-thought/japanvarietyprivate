@@ -284,6 +284,8 @@ export const DataManager: React.FC = () => {
   const [relatedData, setRelatedData] = useState<Record<string, any[]>>({});
   const [detailItem, setDetailItem] = useState<any | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<number[]>([]);
+  const [isDeletingBulk, setIsDeletingBulk] = useState(false);
 
   const currentTable = TABLES.find(t => t.name === activeTable)!;
 
@@ -831,40 +833,34 @@ export const DataManager: React.FC = () => {
 
       // Build success message parts
       let successMsgParts: string[] = [];
-      let carBookingsGenerated = 0;
       
-      // If this is a booking with route_quotation, generate car_bookings automatically
-      if (
-        activeTable === 'bookings' && 
-        savedId && 
-        formData.route_quotation && 
-        formData.route_quotation.trim()
-      ) {
-        try {
-          const generateResponse = await fetch('/api/generate-car-bookings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              bookingId: savedId,
-              quotationText: formData.route_quotation,
-            }),
-          });
-
-          if (generateResponse.ok) {
-            const generateData = await generateResponse.json();
-            carBookingsGenerated = generateData.insertedIds?.length || 0;
-            if (carBookingsGenerated > 0) {
-              successMsgParts.push(`สร้างการจองรถ ${carBookingsGenerated} รายการอัตโนมัติ`);
-            }
-          }
-        } catch (generateErr) {
-          console.error('Error generating car bookings:', generateErr);
-        }
-      }
-      
-      // Generate payments automatically if this is a new booking (not editing)
-      // and deposit_amount or total_price is set
+      // Only generate car_bookings and payments for NEW bookings (not when editing)
       if (activeTable === 'bookings' && savedId && !editingItem) {
+        // Generate car_bookings automatically if route_quotation is provided
+        if (formData.route_quotation && formData.route_quotation.trim()) {
+          try {
+            const generateResponse = await fetch('/api/generate-car-bookings', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                bookingId: savedId,
+                quotationText: formData.route_quotation,
+              }),
+            });
+
+            if (generateResponse.ok) {
+              const generateData = await generateResponse.json();
+              const carBookingsGenerated = generateData.insertedIds?.length || 0;
+              if (carBookingsGenerated > 0) {
+                successMsgParts.push(`สร้างการจองรถ ${carBookingsGenerated} รายการอัตโนมัติ`);
+              }
+            }
+          } catch (generateErr) {
+            console.error('Error generating car bookings:', generateErr);
+          }
+        }
+        
+        // Generate payments automatically if deposit_amount or total_price is set
         const depositAmount = typeof formData.deposit_amount === 'number' ? formData.deposit_amount : (formData.deposit_amount ? Number(formData.deposit_amount) : 0);
         const nextPaymentAmount = typeof formData.next_payment_amount === 'number' ? formData.next_payment_amount : (formData.next_payment_amount ? Number(formData.next_payment_amount) : 0);
         const totalPrice = typeof formData.total_price === 'number' ? formData.total_price : (formData.total_price ? Number(formData.total_price) : 0);
@@ -882,11 +878,13 @@ export const DataManager: React.FC = () => {
                 payment_type: 'deposit',
                 amount: depositAmount,
                 currency: formData.currency || 'JPY',
-                status: 'pending',
               }),
             });
             if (depositResponse.ok) {
               paymentMessages.push('มัดจำ');
+            } else {
+              const errData = await depositResponse.json().catch(() => ({}));
+              console.error('Deposit payment failed:', errData);
             }
           } catch (depositErr) {
             console.error('Error creating deposit payment:', depositErr);
@@ -904,11 +902,13 @@ export const DataManager: React.FC = () => {
                 payment_type: 'partial',
                 amount: nextPaymentAmount,
                 currency: formData.currency || 'JPY',
-                status: 'pending',
               }),
             });
             if (nextPaymentResponse.ok) {
               paymentMessages.push('ยอดชำระถัดไป');
+            } else {
+              const errData = await nextPaymentResponse.json().catch(() => ({}));
+              console.error('Next payment failed:', errData);
             }
           } catch (nextPaymentErr) {
             console.error('Error creating next payment:', nextPaymentErr);
@@ -926,11 +926,13 @@ export const DataManager: React.FC = () => {
                 payment_type: 'full',
                 amount: totalPrice,
                 currency: formData.currency || 'JPY',
-                status: 'pending',
               }),
             });
             if (fullPaymentResponse.ok) {
               paymentMessages.push('ยอดเต็ม');
+            } else {
+              const errData = await fullPaymentResponse.json().catch(() => ({}));
+              console.error('Full payment failed:', errData);
             }
           } catch (fullPaymentErr) {
             console.error('Error creating full payment:', fullPaymentErr);
@@ -982,6 +984,68 @@ export const DataManager: React.FC = () => {
     } finally {
       setDeletingId(null);
     }
+  };
+
+  // Toggle selection of a single item
+  const toggleItemSelection = (id: number) => {
+    setSelectedItems(prev => 
+      prev.includes(id) 
+        ? prev.filter(i => i !== id) 
+        : [...prev, id]
+    );
+  };
+
+  // Toggle select all items
+  const toggleSelectAll = () => {
+    if (selectedItems.length === data.length) {
+      setSelectedItems([]);
+    } else {
+      setSelectedItems(data.map(item => item.id));
+    }
+  };
+
+  // Clear selection when changing table
+  useEffect(() => {
+    setSelectedItems([]);
+  }, [activeTable]);
+
+  // Bulk delete selected items
+  const handleBulkDelete = async () => {
+    if (selectedItems.length === 0) return;
+    
+    const confirmMessage = `ต้องการลบ ${selectedItems.length} รายการที่เลือกใช่ไหม?\n\n⚠️ การลบจะไม่สามารถกู้คืนได้`;
+    if (!confirm(confirmMessage)) return;
+
+    setIsDeletingBulk(true);
+    setError(null);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of selectedItems) {
+      try {
+        const response = await fetch(`/api/data/${activeTable}/${id}`, {
+          method: 'DELETE',
+        });
+        if (response.ok) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch (err) {
+        failCount++;
+      }
+    }
+
+    setIsDeletingBulk(false);
+    setSelectedItems([]);
+    
+    if (failCount === 0) {
+      showSuccess(`ลบ ${successCount} รายการสำเร็จ!`);
+    } else {
+      showSuccess(`ลบสำเร็จ ${successCount} รายการ, ล้มเหลว ${failCount} รายการ`);
+    }
+    
+    fetchData();
   };
 
   const renderFieldInput = (field: FieldConfig) => {
@@ -1210,10 +1274,57 @@ export const DataManager: React.FC = () => {
             </button>
           </div>
         ) : (
+          {/* Bulk Delete Bar */}
+          {selectedItems.length > 0 && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between">
+              <span className="text-amber-700 font-medium">
+                เลือก {selectedItems.length} รายการ
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSelectedItems([])}
+                  className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  ยกเลิกเลือก
+                </button>
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={isDeletingBulk}
+                  className="px-3 py-1.5 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isDeletingBulk ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                      </svg>
+                      กำลังลบ...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      ลบที่เลือก
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-2 py-3 text-center">
+                    <input
+                      type="checkbox"
+                      checked={data.length > 0 && selectedItems.length === data.length}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 text-amber-500 border-gray-300 rounded focus:ring-amber-500 cursor-pointer"
+                    />
+                  </th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">ID</th>
                   {currentTable.fields.slice(0, 5).map(field => (
                     <th key={field.name} className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">
@@ -1227,15 +1338,25 @@ export const DataManager: React.FC = () => {
                 {data.map((item) => {
                   // Check if this is a payment and if it's unpaid (paid_at is null)
                   const isUnpaidPayment = activeTable === 'payments' && !item.paid_at;
+                  const isSelected = selectedItems.includes(item.id);
                   
                   return (
                   <tr 
                     key={item.id} 
                     className={clsx(
                       "hover:bg-gray-50",
-                      isUnpaidPayment && "bg-red-50 hover:bg-red-100"
+                      isUnpaidPayment && "bg-red-50 hover:bg-red-100",
+                      isSelected && "bg-amber-50"
                     )}
                   >
+                    <td className="px-2 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleItemSelection(item.id)}
+                        className="w-4 h-4 text-amber-500 border-gray-300 rounded focus:ring-amber-500 cursor-pointer"
+                      />
+                    </td>
                     <td className={clsx(
                       "px-4 py-3 text-sm",
                       isUnpaidPayment ? "text-red-600 font-semibold" : "text-gray-500"
