@@ -1,11 +1,18 @@
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { Type, Schema } from "@google/genai";
 import { TripPreferences, AIItineraryResponse, ServiceType } from "../../types";
+import { generateContent, loadAIConfig } from "../lib/ai-service";
 
 const ALLOWED_ORIGINS = [
   'https://japanvarietyprivate.pages.dev',
   'https://japanvarietyprivate.knox-thought.com',
   'http://localhost:3000',
 ];
+
+interface Env {
+  DB: D1Database;
+  GEMINI_API_KEY?: string;
+  OPENROUTER_API_KEY?: string;
+}
 
 /**
  * Cloudflare Pages Function
@@ -14,7 +21,7 @@ const ALLOWED_ORIGINS = [
  * Cloudflare Pages Functions use a slightly different runtime than Vercel,
  * but the code structure is very similar.
  */
-export const onRequestPost = async ({ request, env }: { request: Request; env: any }) => {
+export const onRequestPost = async ({ request, env }: { request: Request; env: Env }) => {
   const origin = request.headers.get('Origin') || '';
   const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : '';
 
@@ -31,23 +38,38 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
     });
   }
 
-  const apiKey = env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.error('GEMINI_API_KEY is not configured');
-    return new Response(
-      JSON.stringify({ error: 'API key not configured. Please set GEMINI_API_KEY environment variable.' }),
-      {
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-          ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
-          'Vary': 'Origin',
-        },
-      }
-    );
-  }
-
   try {
+    // Load AI configuration from database (supports Google and OpenRouter)
+    const aiConfig = await loadAIConfig(env);
+    
+    // Validate API key based on provider
+    if (aiConfig.provider === 'google' && !aiConfig.googleApiKey) {
+      return new Response(
+        JSON.stringify({ error: 'Google API key not configured' }),
+        {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
+            'Vary': 'Origin',
+          },
+        }
+      );
+    }
+    if (aiConfig.provider === 'openrouter' && !aiConfig.openrouterApiKey) {
+      return new Response(
+        JSON.stringify({ error: 'OpenRouter API key not configured. Please set OPENROUTER_API_KEY environment variable.' }),
+        {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
+            'Vary': 'Origin',
+          },
+        }
+      );
+    }
+
     const { prefs } = await request.json() as { prefs: TripPreferences };
     
     if (!prefs) {
@@ -63,8 +85,6 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
         }
       );
     }
-
-    const ai = new GoogleGenAI({ apiKey });
 
     const itinerarySchema: Schema = {
       type: Type.OBJECT,
@@ -306,30 +326,17 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
       If a day has multiple services, list each service on its own line with its time.
     `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: itinerarySchema,
-        systemInstruction: "You are an expert Japanese travel concierge for Thai customers.",
-      },
+    // Add system instruction to prompt for OpenRouter compatibility
+    const fullPrompt = `You are an expert Japanese travel concierge for Thai customers.\n\n${prompt}`;
+    
+    // Use unified AI service (supports both Google and OpenRouter)
+    const text = await generateContent(aiConfig, {
+      prompt: fullPrompt,
+      schema: itinerarySchema,
+      temperature: 0.5,
+      maxRetries: 3,
+      retryDelay: 2000,
     });
-
-    const text = response.text;
-    if (!text) {
-      return new Response(
-        JSON.stringify({ error: 'No response from AI service' }),
-        {
-          status: 500,
-          headers: {
-            'Content-Type': 'application/json',
-            ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
-            'Vary': 'Origin',
-          },
-        }
-      );
-    }
 
     const result = JSON.parse(text) as AIItineraryResponse;
 
@@ -369,16 +376,26 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
       }
     );
   } catch (error) {
-    console.error("Gemini API Error:", error);
+    console.error("AI API Error:", error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    
+    // Check if it's an overload error
+    const isOverloadError = errorMessage.includes('overloaded') || 
+                            errorMessage.includes('503') || 
+                            errorMessage.includes('UNAVAILABLE') ||
+                            errorMessage.includes('rate limit') ||
+                            errorMessage.includes('429');
     
     return new Response(
       JSON.stringify({ 
-        error: 'Failed to generate itinerary',
-        message: errorMessage 
+        error: isOverloadError 
+          ? 'AI model กำลังใช้งานหนัก กรุณาลองใหม่อีกครั้งในอีกสักครู่' 
+          : 'Failed to generate itinerary',
+        message: errorMessage,
+        code: isOverloadError ? 503 : 500
       }),
       {
-        status: 500,
+        status: isOverloadError ? 503 : 500,
         headers: {
           'Content-Type': 'application/json',
           ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
