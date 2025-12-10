@@ -548,6 +548,7 @@ export const DataManager: React.FC = () => {
       const lines = operatorResponse.split('\n');
       const processedLines: string[] = [];
       const calculatedPrices: number[] = []; // Store all calculated prices for total calculation
+      let totalLineToInsert: string | null = null; // Store total line to insert at the end
       
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -559,38 +560,29 @@ export const DataManager: React.FC = () => {
           continue;
         }
         
+        // Check if this is a total line - save it to insert at the end instead of inserting now
+        if (trimmedLine.includes('=') && trimmedLine.includes('in total')) {
+          // Don't process it now, we'll insert it at the end
+          continue; // Skip this line for now
+        }
+        
         // Check if this line is a price line
-        // Price lines typically:
-        // 1. Start with numbers (4+ digits usually)
-        // 2. Come after "Route:" or "Note:" lines
-        // 3. May contain +, *, or () for add-ons
-        // 4. Should NOT be in WAITING TIME RULES section
-        // 5. Should NOT be a bullet point (starts with "-")
-        const prevLine = i > 0 ? lines[i-1].trim() : '';
-        const prevLineLower = prevLine.toLowerCase();
-        const isAfterRoute = prevLineLower.includes('route:') || prevLineLower.startsWith('route');
-        const isAfterNote = prevLineLower.startsWith('note:');
-        const isAfterDate = prevLineLower.startsWith('date');
-        const isAfterService = prevLineLower.startsWith('service:');
-        const isAfterCar = prevLineLower.startsWith('car:');
-        const isAfterPax = prevLineLower.startsWith('pax:');
-        const isAfterLuggage = prevLineLower.startsWith('luggage:');
-        
-        // Check if we're in a valid context for a price line
-        const isValidPriceContext = isAfterRoute || isAfterNote || isAfterCar || isAfterPax || isAfterLuggage || isAfterService || isAfterDate;
-        
-        // Check if this looks like a price line (must start with 4+ digits to avoid false positives)
+        // Price lines:
+        // 1. Start with numbers (4+ digits)
+        // 2. May contain +, *, or () for add-ons
+        // 3. Should NOT be in WAITING TIME RULES section
+        // 4. Should NOT be a bullet point (starts with "-")
+        // 5. Should NOT contain "=" (that's a total line)
+        // More flexible: don't require specific context, just check if it looks like a price
         const looksLikePrice = /^\d{4,}/.test(trimmedLine) && 
+          !trimmedLine.includes('=') && // Not a total line
+          !trimmedLine.startsWith('-') && // Not a bullet point
           (trimmedLine.includes('+') || 
            trimmedLine.includes('(') || 
            /^\d{4,}$/.test(trimmedLine));
         
         const isPriceLine = looksLikePrice && 
-          isValidPriceContext &&
-          !isInWaitingTimeSection(i, lines) &&
-          !prevLineLower.includes('waiting time') &&
-          !trimmedLine.startsWith('-') &&
-          !prevLineLower.startsWith('-');
+          !isInWaitingTimeSection(i, lines);
         
         if (isPriceLine) {
           // This is likely a price line - calculate new price
@@ -616,35 +608,30 @@ export const DataManager: React.FC = () => {
             });
             calculatedPrices.push(dayTotal);
           }
-        } else if (trimmedLine.includes('=') && trimmedLine.includes('in total')) {
-          // This is a total line - calculate new total from all calculated prices
-          const totalMatch = trimmedLine.match(/(\d+(?:\+\d+)*)\s*=\s*(\d+)\s+in\s+total/i);
-          if (totalMatch && calculatedPrices.length > 0) {
-            // Use calculated prices we collected
-            const total = calculatedPrices.reduce((sum, price) => sum + price, 0);
-            // Reconstruct the expression from calculated prices
-            const totalExpression = calculatedPrices.join('+');
-            processedLines.push(`${totalExpression} = ${total} in total`);
-          } else if (totalMatch) {
-            // Fallback: parse original expression
-            const totalExpression = totalMatch[1];
-            const pricePattern = /(\d+)(\*(\d+))?/g;
-            let total = 0;
-            let priceMatch;
-            
-            while ((priceMatch = pricePattern.exec(totalExpression)) !== null) {
-              const price = parseInt(priceMatch[1]);
-              const mult = priceMatch[3] ? parseInt(priceMatch[3]) : 1;
-              total += calculateSellingPrice(price) * mult;
-            }
-            
-            processedLines.push(`${totalExpression} = ${total} in total`);
-          } else {
-            processedLines.push(line);
-          }
         } else {
           // Keep original line
           processedLines.push(line);
+        }
+      }
+      
+      // After processing all lines, insert the calculated total line at the end
+      // But before any WAITING TIME RULES section
+      if (calculatedPrices.length > 0) {
+        const total = calculatedPrices.reduce((sum, price) => sum + price, 0);
+        const totalExpression = calculatedPrices.join('+');
+        totalLineToInsert = `${totalExpression} = ${total} in total`;
+        
+        // Find where to insert: before WAITING TIME RULES section, or at the end
+        const waitingTimeIndex = processedLines.findIndex((l) => 
+          l.toLowerCase().includes('waiting time rules')
+        );
+        
+        if (waitingTimeIndex !== -1) {
+          // Insert before WAITING TIME RULES section
+          processedLines.splice(waitingTimeIndex, 0, totalLineToInsert);
+        } else {
+          // Insert at the end
+          processedLines.push(totalLineToInsert);
         }
       }
       
