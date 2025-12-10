@@ -438,49 +438,137 @@ export const DataManager: React.FC = () => {
   };
 
   // Generate output text similar to QuotationProcessor Output 1 (selling price breakdown)
-  const generateSellingPriceOutput = (data: any, customerName: string = '') => {
+  // Format: Keep original structure but replace prices with calculated prices (×1.30×1.07)
+  const generateSellingPriceOutput = (data: any, customerName: string = '', operatorResponse?: string) => {
     const roundUpTo1000 = (price: number): number => {
       return Math.ceil(price / 1000) * 1000;
     };
 
-    const formatPrice = (price: number, currency: string = '¥') => {
-      return `${currency}${price.toLocaleString()}`;
+    // Calculate price with markup: costPrice × 1.30 × 1.07 (30% + 7% VAT combined)
+    const calculateSellingPrice = (costPrice: number): number => {
+      const withMarkup = costPrice * 1.30 * 1.07;
+      return roundUpTo1000(withMarkup);
+    };
+
+    // Parse price expression like "75000+2000*2(3 Baby seat)" and calculate selling price
+    const parseAndCalculatePrice = (priceText: string): string => {
+      if (!priceText) return '';
+      
+      // Extract base price and add-ons
+      // Pattern: "75000+2000*2(3 Baby seat)" or "75000(3 Baby seat)" or "75000"
+      const basePriceMatch = priceText.match(/^(\d+)/);
+      if (!basePriceMatch) return priceText;
+      
+      const basePrice = parseInt(basePriceMatch[1]);
+      const calculatedBase = calculateSellingPrice(basePrice);
+      
+      // Extract add-ons like "+2000*2(3 Baby seat)" or "(3 Baby seat)"
+      const addOnPattern = /\+(\d+)(\*(\d+))?\(([^)]+)\)/g;
+      const addOns: string[] = [];
+      let match;
+      let remainingText = priceText;
+      
+      while ((match = addOnPattern.exec(priceText)) !== null) {
+        const addOnPrice = parseInt(match[1]);
+        const multiplier = match[3] ? parseInt(match[3]) : 1;
+        const note = match[4];
+        const calculatedAddOn = calculateSellingPrice(addOnPrice);
+        const totalAddOn = calculatedAddOn * multiplier;
+        addOns.push(`+${totalAddOn}${multiplier > 1 ? `*${multiplier}` : ''}(${note})`);
+        remainingText = remainingText.replace(match[0], '');
+      }
+      
+      // Check for simple note in parentheses like "(3 Baby seat)" without + sign
+      const simpleNoteMatch = priceText.match(/\(([^)]+)\)$/);
+      if (simpleNoteMatch && !priceText.includes('+')) {
+        const note = simpleNoteMatch[1];
+        return `${calculatedBase}(${note})`;
+      }
+      
+      // Combine base price and add-ons
+      if (addOns.length > 0) {
+        return `${calculatedBase}${addOns.join('')}`;
+      }
+      
+      return calculatedBase.toString();
     };
 
     let output = customerName ? `${customerName}\n\n` : '';
 
-    // Process each day
-    data.days.forEach((day: any) => {
-      const priceBeforeVAT = roundUpTo1000(day.costPrice * 1.3);
-      const priceWithVAT = Math.round(priceBeforeVAT * 1.07);
+    // If we have operatorResponse, try to parse it to preserve original format
+    if (operatorResponse) {
+      // Simple approach: Find and replace all price lines
+      // Price lines are lines that start with numbers (like "75000+2000*2(3 Baby seat)")
+      const lines = operatorResponse.split('\n');
+      const processedLines: string[] = [];
       
-      output += `${day.date}\n`;
-      output += `${day.vehicle}\n`;
-      output += `${day.serviceType}\n`;
-      if (day.route) output += `${day.route}\n`;
-      output += `ต้นทุน: ${formatPrice(day.costPrice, day.currency || '¥')}`;
-      if (day.costPriceNote) output += ` ${day.costPriceNote}`;
-      output += `\n`;
-      output += `+30%: ${formatPrice(Math.round(day.costPrice * 1.3), day.currency || '¥')} → ปัดขึ้น: ${formatPrice(priceBeforeVAT, day.currency || '¥')}\n`;
-      output += `💰 ราคาขาย (รวม VAT 7%): ${formatPrice(priceWithVAT, day.currency || '¥')}\n\n`;
-    });
-    
-    // Calculate totals
-    const totalSellingBeforeVAT = data.days.reduce((sum: number, day: any) => {
-      return sum + roundUpTo1000(day.costPrice * 1.3);
-    }, 0);
-    const vatAmount = Math.round(totalSellingBeforeVAT * 0.07);
-    const totalSellingWithVAT = totalSellingBeforeVAT + vatAmount;
-
-    output += `────────────────\n`;
-    output += `รวมก่อน VAT (30%): ${formatPrice(totalSellingBeforeVAT, '¥')}\n`;
-    output += `VAT 7%: ${formatPrice(vatAmount, '¥')}\n`;
-    output += `รวมทั้งหมด (รวม VAT): ${formatPrice(totalSellingWithVAT, '¥')}\n`;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmedLine = line.trim();
+        
+        // Check if this line is a price line (starts with number, may have +, *, parentheses)
+        if (/^\d+/.test(trimmedLine) && (trimmedLine.includes('+') || trimmedLine.includes('(') || /^\d+$/.test(trimmedLine))) {
+          // This is likely a price line - calculate new price
+          const calculatedPriceLine = parseAndCalculatePrice(trimmedLine);
+          processedLines.push(calculatedPriceLine);
+        } else if (trimmedLine.includes('=') && trimmedLine.includes('in total')) {
+          // This is a total line - calculate new total
+          const totalMatch = trimmedLine.match(/(\d+(?:\+\d+)*)\s*=\s*(\d+)\s+in\s+total/i);
+          if (totalMatch) {
+            const totalExpression = totalMatch[1];
+            // Split by + and calculate each part
+            const parts = totalExpression.split('+');
+            const calculatedParts = parts.map(part => {
+              // Handle multiplication like "2000*2"
+              if (part.includes('*')) {
+                const [price, mult] = part.split('*').map(Number);
+                return calculateSellingPrice(price) * mult;
+              }
+              return calculateSellingPrice(parseInt(part));
+            });
+            const calculatedTotal = calculatedParts.reduce((sum, val) => sum + val, 0);
+            processedLines.push(`${totalExpression} = ${calculatedTotal} in total`);
+          } else {
+            processedLines.push(line);
+          }
+        } else {
+          // Keep original line
+          processedLines.push(line);
+        }
+      }
+      
+      output = processedLines.join('\n');
+      
+      // Add customer name at the beginning if available
+      if (customerName) {
+        output = `${customerName}\n\n${output}`;
+      }
+    } else {
+      // Fallback: Simple format if no operatorResponse
+      data.days.forEach((day: any) => {
+        const calculatedPrice = calculateSellingPrice(day.costPrice);
+        output += `Date ${day.date}\n`;
+        output += `${day.vehicle || ''}\n`;
+        output += `${day.serviceType || ''}\n`;
+        if (day.route) output += `${day.route}\n`;
+        output += `${calculatedPrice}`;
+        if (day.costPriceNote) {
+          const calculatedNote = parseAndCalculatePrice(day.costPriceNote);
+          output += calculatedNote.replace(/^\d+/, '');
+        }
+        output += '\n\n';
+      });
+      
+      const totalSelling = data.days.reduce((sum: number, day: any) => {
+        return sum + calculateSellingPrice(day.costPrice);
+      }, 0);
+      output += `\n${totalSelling} in total\n`;
+    }
 
     if (data.notes && data.notes.length > 0) {
-      output += `\nหมายเหตุ:\n`;
+      output += `\n`;
       data.notes.forEach((note: string) => {
-        output += `• ${note}\n`;
+        output += `${note}\n`;
       });
     }
 
@@ -496,7 +584,7 @@ export const DataManager: React.FC = () => {
         body: JSON.stringify({ 
           ourQuotation: ourQuotation || '', // Optional
           operatorResponse: operatorResponse,
-          markupMultiplier: 1.3 // 30% margin only (VAT will be added separately)
+          markupMultiplier: 1.391 // 30% margin + 7% VAT combined (1.30 × 1.07)
         }),
       });
 
@@ -518,17 +606,19 @@ export const DataManager: React.FC = () => {
         : data.customerName || '';
 
       // Generate output text (like QuotationProcessor Output 1)
-      const outputText = generateSellingPriceOutput(data, customerName);
+      // Pass operatorResponse to preserve original format
+      const outputText = generateSellingPriceOutput(data, customerName, operatorResponse || '');
 
-      // Calculate totals for display
+      // Calculate totals for display (×1.30×1.07 combined)
       const roundUpTo1000 = (price: number): number => {
         return Math.ceil(price / 1000) * 1000;
       };
-      const totalSellingBeforeVAT = data.days.reduce((sum: number, day: any) => {
-        return sum + roundUpTo1000(day.costPrice * 1.3);
+      const calculateSellingPrice = (costPrice: number): number => {
+        return roundUpTo1000(costPrice * 1.30 * 1.07);
+      };
+      const totalSellingWithVAT = data.days.reduce((sum: number, day: any) => {
+        return sum + calculateSellingPrice(day.costPrice);
       }, 0);
-      const vatAmount = Math.round(totalSellingBeforeVAT * 0.07);
-      const totalSellingWithVAT = totalSellingBeforeVAT + vatAmount;
 
       // Update form data: fill route_quotation with output text and store cost_price
       setFormData(prev => ({
