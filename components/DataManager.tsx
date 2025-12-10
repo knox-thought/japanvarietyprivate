@@ -549,23 +549,86 @@ export const DataManager: React.FC = () => {
       const lines = operatorResponse.split('\n');
       const processedLines: string[] = [];
       const calculatedPrices: number[] = []; // Store all calculated prices for total calculation
+      let waitingTimeRulesFound = false; // Track if we've already processed WAITING TIME RULES section
+      let firstWaitingTimeRulesEndIndex = -1; // Track where the first WAITING TIME RULES section ends
+      
+      // First pass: find where the first WAITING TIME RULES section ends
+      // Look for the last bullet point in the first WAITING TIME RULES section
+      for (let i = 0; i < lines.length; i++) {
+        const trimmedLine = lines[i].trim().toLowerCase();
+        if (trimmedLine.includes('waiting time rules') && firstWaitingTimeRulesEndIndex === -1) {
+          // Find the end of this section (last bullet point)
+          for (let j = i + 1; j < lines.length; j++) {
+            const nextLine = lines[j].trim();
+            const nextLineLower = nextLine.toLowerCase();
+            // Stop when we hit a non-bullet line that's not empty and not part of WAITING TIME RULES
+            if (nextLine && !nextLine.startsWith('-') && 
+                !nextLineLower.includes('waiting time rules') &&
+                !nextLineLower.includes('charter') &&
+                !nextLineLower.includes('transfer') &&
+                !nextLineLower.includes('exceeding') &&
+                !nextLineLower.includes('free waiting')) {
+              firstWaitingTimeRulesEndIndex = j;
+              break;
+            }
+          }
+          // If we didn't find an end, use the line after the last bullet
+          if (firstWaitingTimeRulesEndIndex === -1) {
+            // Find the last bullet point
+            for (let j = lines.length - 1; j >= i; j--) {
+              if (lines[j].trim().startsWith('-')) {
+                firstWaitingTimeRulesEndIndex = j + 1;
+                break;
+              }
+            }
+          }
+          break;
+        }
+      }
       
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         const trimmedLine = line.trim();
         
-        // Skip WAITING TIME RULES section - don't process price lines there
-        if (isInWaitingTimeSection(i, lines)) {
-          // Only keep WAITING TIME RULES content, skip any total lines
-          if (!(trimmedLine.includes('=') && trimmedLine.includes('in total'))) {
-            processedLines.push(line);
-          }
-          continue;
-        }
-        
         // Remove ALL total lines from input (whether before or after WAITING TIME RULES)
         if (trimmedLine.includes('=') && trimmedLine.includes('in total')) {
           // Skip this line completely - we'll add our own calculated total at the end
+          continue;
+        }
+        
+        // Skip everything after the first WAITING TIME RULES section ends
+        // (these are duplicates: notes, total lines, inline WAITING TIME RULES)
+        if (firstWaitingTimeRulesEndIndex !== -1 && i >= firstWaitingTimeRulesEndIndex) {
+          const lowerLine = trimmedLine.toLowerCase();
+          // Skip duplicate notes, duplicate WAITING TIME RULES, etc.
+          if (lowerLine.startsWith('estimated') || 
+              lowerLine.startsWith('must arrive') ||
+              lowerLine.includes('waiting time rules')) {
+            continue; // Skip duplicate content
+          }
+        }
+        
+        // Handle WAITING TIME RULES section - only keep the first occurrence with bullet points
+        if (isInWaitingTimeSection(i, lines)) {
+          if (!waitingTimeRulesFound) {
+            // Check if this is inline format (all rules in one line with dashes)
+            if (trimmedLine.toLowerCase().includes('waiting time rules:') && 
+                trimmedLine.includes('-') && 
+                trimmedLine.length > 100) {
+              // This is inline format (long line with multiple rules), skip it
+              continue;
+            }
+            processedLines.push(line);
+            // Mark that we've started the WAITING TIME RULES section
+            if (trimmedLine.toLowerCase().includes('waiting time rules')) {
+              waitingTimeRulesFound = true;
+            }
+          } else {
+            // Skip duplicate WAITING TIME RULES content (inline versions that appear later)
+            if (trimmedLine.toLowerCase().includes('waiting time rules:')) {
+              continue; // Skip duplicate inline version
+            }
+          }
           continue;
         }
         
@@ -612,7 +675,7 @@ export const DataManager: React.FC = () => {
             calculatedPrices.push(dayTotal);
           }
         } else {
-          // Keep original line
+          // Keep original line (but skip if it's a duplicate note after WAITING TIME RULES)
           processedLines.push(line);
         }
       }
@@ -827,8 +890,16 @@ export const DataManager: React.FC = () => {
 
     switch (field.type) {
       case 'textarea':
-        // Special handling for cost_quotation - larger textarea
-        const rows = field.name === 'cost_quotation' ? 8 : 3;
+        // Special handling for cost_quotation and route_quotation - larger textarea
+        let rows = 3;
+        let fontFamily = 'inherit';
+        if (field.name === 'cost_quotation') {
+          rows = 8;
+          fontFamily = 'monospace';
+        } else if (field.name === 'route_quotation') {
+          rows = 15; // Larger textarea for route quotation
+          fontFamily = 'monospace';
+        }
         return (
           <textarea
             value={value}
@@ -836,7 +907,7 @@ export const DataManager: React.FC = () => {
             placeholder={field.placeholder}
             rows={rows}
             className={baseClasses}
-            style={{ fontFamily: field.name === 'cost_quotation' ? 'monospace' : 'inherit' }}
+            style={{ fontFamily }}
           />
         );
       case 'select':
