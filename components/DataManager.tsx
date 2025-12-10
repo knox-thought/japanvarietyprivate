@@ -462,26 +462,61 @@ export const DataManager: React.FC = () => {
       const basePrice = parseInt(basePriceMatch[1]);
       const calculatedBase = calculateSellingPrice(basePrice);
       
-      // Extract add-ons like "+2000*2(3 Baby seat)" or "(3 Baby seat)"
+      // Extract add-ons like "+2000*2(3 Baby seat)"
+      // IMPORTANT: Calculate each add-on unit price first, then multiply
+      // Add-ons should be rounded up to nearest 100 (not 1000 like base price)
+      // Example: 2000*2 → (2000 * 1.30 * 1.07 = 2782 → round up to 100 = 2800) * 2, show as 2800*2
+      const roundUpTo100 = (price: number): number => {
+        return Math.ceil(price / 100) * 100;
+      };
+      
+      const calculateAddOnPrice = (costPrice: number): number => {
+        const withMarkup = costPrice * 1.30 * 1.07;
+        return roundUpTo100(withMarkup);
+      };
+      
+      // Parse add-ons: +2000*2(3 Baby seat) or +2000(3 Baby seat)
+      // IMPORTANT: Match pattern must be precise - only match +number*number(note) or +number(note)
+      // Do NOT match numbers inside parentheses (like "3 Baby seat")
       const addOnPattern = /\+(\d+)(\*(\d+))?\(([^)]+)\)/g;
       const addOns: string[] = [];
       let match;
-      let remainingText = priceText;
+      
+      // Reset regex lastIndex to avoid issues with global regex
+      addOnPattern.lastIndex = 0;
       
       while ((match = addOnPattern.exec(priceText)) !== null) {
-        const addOnPrice = parseInt(match[1]);
+        // match[1] = unit price (e.g., "2000")
+        // match[3] = multiplier if exists (e.g., "2")
+        // match[4] = note (e.g., "3 Baby seat")
+        const addOnUnitPrice = parseInt(match[1]);
         const multiplier = match[3] ? parseInt(match[3]) : 1;
         const note = match[4];
-        const calculatedAddOn = calculateSellingPrice(addOnPrice);
-        const totalAddOn = calculatedAddOn * multiplier;
-        addOns.push(`+${totalAddOn}${multiplier > 1 ? `*${multiplier}` : ''}(${note})`);
-        remainingText = remainingText.replace(match[0], '');
+        
+        // Validate: multiplier should be reasonable (1-10)
+        if (multiplier < 1 || multiplier > 10) {
+          console.warn(`Invalid multiplier ${multiplier} for add-on ${addOnUnitPrice}`);
+          continue;
+        }
+        
+        // Calculate selling price for ONE unit of add-on (rounded to 100)
+        // Example: 2000 → 2000 * 1.30 * 1.07 = 2782 → round up to 100 = 2800
+        const calculatedAddOnUnit = calculateAddOnPrice(addOnUnitPrice);
+        
+        // Format: +calculatedUnit*multiplier(note) or +calculatedUnit(note) if multiplier is 1
+        // Example: +2800*2(3 Baby seat) or +2800(3 Baby seat)
+        if (multiplier > 1) {
+          addOns.push(`+${calculatedAddOnUnit}*${multiplier}(${note})`);
+        } else {
+          addOns.push(`+${calculatedAddOnUnit}(${note})`);
+        }
       }
       
       // Check for simple note in parentheses like "(3 Baby seat)" without + sign
-      const simpleNoteMatch = priceText.match(/\(([^)]+)\)$/);
+      // Only match if there's no + sign in the price text (meaning no add-ons)
+      const simpleNoteMatch = priceText.match(/^(\d+)\(([^)]+)\)$/);
       if (simpleNoteMatch && !priceText.includes('+')) {
-        const note = simpleNoteMatch[1];
+        const note = simpleNoteMatch[2];
         return `${calculatedBase}(${note})`;
       }
       
@@ -497,37 +532,113 @@ export const DataManager: React.FC = () => {
 
     // If we have operatorResponse, try to parse it to preserve original format
     if (operatorResponse) {
+      // Find where WAITING TIME RULES section starts
+      const isInWaitingTimeSection = (lineIndex: number, allLines: string[]) => {
+        // Find the line that contains "WAITING TIME RULES"
+        const rulesLineIndex = allLines.findIndex((l) => 
+          l.toLowerCase().includes('waiting time rules')
+        );
+        if (rulesLineIndex === -1) return false;
+        // Everything from WAITING TIME RULES line onwards should be skipped
+        return lineIndex >= rulesLineIndex;
+      };
+      
       // Simple approach: Find and replace all price lines
       // Price lines are lines that start with numbers (like "75000+2000*2(3 Baby seat)")
       const lines = operatorResponse.split('\n');
       const processedLines: string[] = [];
+      const calculatedPrices: number[] = []; // Store all calculated prices for total calculation
       
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         const trimmedLine = line.trim();
         
-        // Check if this line is a price line (starts with number, may have +, *, parentheses)
-        if (/^\d+/.test(trimmedLine) && (trimmedLine.includes('+') || trimmedLine.includes('(') || /^\d+$/.test(trimmedLine))) {
+        // Skip WAITING TIME RULES section - don't process price lines there
+        if (isInWaitingTimeSection(i, lines)) {
+          processedLines.push(line);
+          continue;
+        }
+        
+        // Check if this line is a price line
+        // Price lines typically:
+        // 1. Start with numbers (4+ digits usually)
+        // 2. Come after "Route:" or "Note:" lines
+        // 3. May contain +, *, or () for add-ons
+        // 4. Should NOT be in WAITING TIME RULES section
+        // 5. Should NOT be a bullet point (starts with "-")
+        const prevLine = i > 0 ? lines[i-1].trim() : '';
+        const prevLineLower = prevLine.toLowerCase();
+        const isAfterRoute = prevLineLower.includes('route:') || prevLineLower.startsWith('route');
+        const isAfterNote = prevLineLower.startsWith('note:');
+        const isAfterDate = prevLineLower.startsWith('date');
+        const isAfterService = prevLineLower.startsWith('service:');
+        const isAfterCar = prevLineLower.startsWith('car:');
+        const isAfterPax = prevLineLower.startsWith('pax:');
+        const isAfterLuggage = prevLineLower.startsWith('luggage:');
+        
+        // Check if we're in a valid context for a price line
+        const isValidPriceContext = isAfterRoute || isAfterNote || isAfterCar || isAfterPax || isAfterLuggage || isAfterService || isAfterDate;
+        
+        // Check if this looks like a price line (must start with 4+ digits to avoid false positives)
+        const looksLikePrice = /^\d{4,}/.test(trimmedLine) && 
+          (trimmedLine.includes('+') || 
+           trimmedLine.includes('(') || 
+           /^\d{4,}$/.test(trimmedLine));
+        
+        const isPriceLine = looksLikePrice && 
+          isValidPriceContext &&
+          !isInWaitingTimeSection(i, lines) &&
+          !prevLineLower.includes('waiting time') &&
+          !trimmedLine.startsWith('-') &&
+          !prevLineLower.startsWith('-');
+        
+        if (isPriceLine) {
           // This is likely a price line - calculate new price
           const calculatedPriceLine = parseAndCalculatePrice(trimmedLine);
           processedLines.push(calculatedPriceLine);
-        } else if (trimmedLine.includes('=') && trimmedLine.includes('in total')) {
-          // This is a total line - calculate new total
-          const totalMatch = trimmedLine.match(/(\d+(?:\+\d+)*)\s*=\s*(\d+)\s+in\s+total/i);
-          if (totalMatch) {
-            const totalExpression = totalMatch[1];
-            // Split by + and calculate each part
-            const parts = totalExpression.split('+');
-            const calculatedParts = parts.map(part => {
-              // Handle multiplication like "2000*2"
-              if (part.includes('*')) {
-                const [price, mult] = part.split('*').map(Number);
-                return calculateSellingPrice(price) * mult;
+          
+          // Extract total from calculated price line for total calculation
+          // Example: "105000+2800*2(3 Baby seat)" → extract 105000 + (2800*2) = 110600
+          // Remove notes in parentheses first, then parse numbers
+          const priceLineWithoutNotes = calculatedPriceLine.replace(/\([^)]+\)/g, '');
+          // Extract all numbers and multipliers: "105000+2800*2" → ["105000", "2800*2"]
+          const priceParts = priceLineWithoutNotes.split('+').filter(p => p.trim());
+          if (priceParts.length > 0) {
+            let dayTotal = 0;
+            priceParts.forEach(part => {
+              const trimmedPart = part.trim();
+              if (trimmedPart.includes('*')) {
+                const [price, mult] = trimmedPart.split('*').map(Number);
+                dayTotal += price * mult;
+              } else {
+                dayTotal += parseInt(trimmedPart) || 0;
               }
-              return calculateSellingPrice(parseInt(part));
             });
-            const calculatedTotal = calculatedParts.reduce((sum, val) => sum + val, 0);
-            processedLines.push(`${totalExpression} = ${calculatedTotal} in total`);
+            calculatedPrices.push(dayTotal);
+          }
+        } else if (trimmedLine.includes('=') && trimmedLine.includes('in total')) {
+          // This is a total line - calculate new total from all calculated prices
+          const totalMatch = trimmedLine.match(/(\d+(?:\+\d+)*)\s*=\s*(\d+)\s+in\s+total/i);
+          if (totalMatch && calculatedPrices.length > 0) {
+            // Use calculated prices we collected
+            const total = calculatedPrices.reduce((sum, price) => sum + price, 0);
+            // Reconstruct the expression from calculated prices
+            const totalExpression = calculatedPrices.join('+');
+            processedLines.push(`${totalExpression} = ${total} in total`);
+          } else if (totalMatch) {
+            // Fallback: parse original expression
+            const totalExpression = totalMatch[1];
+            const pricePattern = /(\d+)(\*(\d+))?/g;
+            let total = 0;
+            let priceMatch;
+            
+            while ((priceMatch = pricePattern.exec(totalExpression)) !== null) {
+              const price = parseInt(priceMatch[1]);
+              const mult = priceMatch[3] ? parseInt(priceMatch[3]) : 1;
+              total += calculateSellingPrice(price) * mult;
+            }
+            
+            processedLines.push(`${totalExpression} = ${total} in total`);
           } else {
             processedLines.push(line);
           }
