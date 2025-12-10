@@ -1,4 +1,5 @@
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { Type, Schema } from "@google/genai";
+import { generateContent, loadAIConfig } from "../lib/ai-service";
 
 const ALLOWED_ORIGINS = [
   'https://japanvarietyprivate.pages.dev',
@@ -6,7 +7,13 @@ const ALLOWED_ORIGINS = [
   'http://localhost:3000',
 ];
 
-export const onRequestPost = async ({ request, env }: { request: Request; env: any }) => {
+interface Env {
+  DB: D1Database;
+  GEMINI_API_KEY?: string;
+  OPENROUTER_API_KEY?: string;
+}
+
+export const onRequestPost = async ({ request, env }: { request: Request; env: Env }) => {
   const origin = request.headers.get('Origin') || '';
   const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : '';
 
@@ -23,18 +30,25 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: a
     });
   }
 
-  const apiKey = env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return new Response(
-      JSON.stringify({ error: 'API key not configured' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
-  }
-
   try {
-    const { ourQuotation, operatorResponse, markupMultiplier } = await request.json();
+    // Load AI configuration from database
+    const aiConfig = await loadAIConfig(env);
+    
+    // Validate API key based on provider
+    if (aiConfig.provider === 'google' && !aiConfig.googleApiKey) {
+      return new Response(
+        JSON.stringify({ error: 'Google API key not configured' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    if (aiConfig.provider === 'openrouter' && !aiConfig.openrouterApiKey) {
+      return new Response(
+        JSON.stringify({ error: 'OpenRouter API key not configured' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
-    const ai = new GoogleGenAI({ apiKey });
+    const { ourQuotation, operatorResponse, markupMultiplier } = await request.json();
 
     const responseSchema: Schema = {
       type: Type.OBJECT,
@@ -107,50 +121,13 @@ IMPORTANT PRICE EXTRACTION:
 Return valid JSON matching the schema.
 `;
 
-    // Retry logic for handling model overload (503 errors)
-    let text: string | undefined;
-    let lastError: any;
-    const maxRetries = 3;
-    const retryDelay = 2000; // 2 seconds
-    
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        // Use ai.models.generateContent pattern (same as generate-itinerary.ts)
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.0-flash-exp',
-          contents: prompt,
-          config: {
-            responseMimeType: "application/json",
-            responseSchema: responseSchema,
-          },
-        });
-
-        text = response.text; // Property, not method
-        break; // Success, exit retry loop
-      } catch (error: any) {
-        lastError = error;
-        // Check if it's a 503/overload error
-        const errorMessage = error?.message || JSON.stringify(error);
-        const isOverloadError = errorMessage.includes('overloaded') || 
-                                errorMessage.includes('503') || 
-                                errorMessage.includes('UNAVAILABLE');
-        
-        if (isOverloadError && attempt < maxRetries - 1) {
-          // Wait before retrying
-          await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)));
-          continue;
-        }
-        throw error; // Re-throw if not overload error or last attempt
-      }
-    }
-    
-    if (!text) {
-      throw lastError || new Error('No response from AI after retries');
-    }
-    
-    if (!text) {
-      throw new Error('No response from AI');
-    }
+    // Use unified AI service (supports both Google and OpenRouter)
+    const text = await generateContent(aiConfig, {
+      prompt,
+      schema: responseSchema,
+      maxRetries: 3,
+      retryDelay: 2000,
+    });
 
     const parsed = JSON.parse(text);
 

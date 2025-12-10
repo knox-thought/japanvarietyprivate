@@ -1,4 +1,5 @@
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { Type, Schema } from "@google/genai";
+import { generateContent, loadAIConfig } from "../lib/ai-service";
 
 const ALLOWED_ORIGINS = [
   'https://japanvarietyprivate.pages.dev',
@@ -8,7 +9,8 @@ const ALLOWED_ORIGINS = [
 
 interface Env {
   DB: D1Database;
-  GEMINI_API_KEY: string;
+  GEMINI_API_KEY?: string;
+  OPENROUTER_API_KEY?: string;
 }
 
 export const onRequestPost = async ({ request, env }: { request: Request; env: Env }) => {
@@ -28,21 +30,36 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
     });
   }
 
-  const apiKey = env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return new Response(
-      JSON.stringify({ error: 'API key not configured' }),
-      { 
-        status: 500, 
-        headers: { 
-          'Content-Type': 'application/json',
-          ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
-        } 
-      }
-    );
-  }
-
   try {
+    // Load AI configuration from database
+    const aiConfig = await loadAIConfig(env);
+    
+    // Validate API key based on provider
+    if (aiConfig.provider === 'google' && !aiConfig.googleApiKey) {
+      return new Response(
+        JSON.stringify({ error: 'Google API key not configured' }),
+        { 
+          status: 500, 
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
+          } 
+        }
+      );
+    }
+    if (aiConfig.provider === 'openrouter' && !aiConfig.openrouterApiKey) {
+      return new Response(
+        JSON.stringify({ error: 'OpenRouter API key not configured' }),
+        { 
+          status: 500, 
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
+          } 
+        }
+      );
+    }
+
     const { bookingId, quotationText } = await request.json();
 
     if (!bookingId || !quotationText) {
@@ -72,8 +89,6 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
         }
       );
     }
-
-    const ai = new GoogleGenAI({ apiKey });
 
     // Schema for AI response - car bookings from quotation
     const carBookingsSchema: Schema = {
@@ -149,47 +164,15 @@ ${quotationText}
 
 ให้วิเคราะห์และสร้างรายการ car_bookings ตามข้อมูลใน Quotation`;
 
-    // Retry logic for handling model overload (503 errors)
-    let text: string | undefined;
-    let lastError: any;
-    const maxRetries = 3;
-    const retryDelay = 2000; // 2 seconds
-    
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        // Use ai.models.generateContent pattern (same as generate-itinerary.ts)
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.0-flash-exp',
-          contents: prompt,
-          config: {
-            responseMimeType: "application/json",
-            responseSchema: carBookingsSchema,
-            temperature: 0.3,
-          },
-        });
+    // Use unified AI service (supports both Google and OpenRouter)
+    const text = await generateContent(aiConfig, {
+      prompt,
+      schema: carBookingsSchema,
+      temperature: 0.3,
+      maxRetries: 3,
+      retryDelay: 2000,
+    });
 
-        text = response.text; // Property, not method
-        break; // Success, exit retry loop
-      } catch (error: any) {
-        lastError = error;
-        // Check if it's a 503/overload error
-        const errorMessage = error?.message || JSON.stringify(error);
-        const isOverloadError = errorMessage.includes('overloaded') || 
-                                errorMessage.includes('503') || 
-                                errorMessage.includes('UNAVAILABLE');
-        
-        if (isOverloadError && attempt < maxRetries - 1) {
-          // Wait before retrying
-          await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)));
-          continue;
-        }
-        throw error; // Re-throw if not overload error or last attempt
-      }
-    }
-    
-    if (!text) {
-      throw lastError || new Error('No response from AI after retries');
-    }
     let parsed;
     
     try {

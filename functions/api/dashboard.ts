@@ -74,6 +74,29 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
       SELECT COUNT(*) as count FROM car_companies WHERE is_active = 1
     `).all();
 
+    // Load AI settings
+    let aiSettings: Record<string, { value: string; description?: string }> = {};
+    try {
+      const { results: settingsResults } = await env.DB.prepare(`
+        SELECT key, value, description FROM settings WHERE key IN ('ai_provider', 'openrouter_api_key', 'openrouter_model', 'google_model')
+      `).all();
+      
+      (settingsResults || []).forEach((row: any) => {
+        aiSettings[row.key] = {
+          value: row.value,
+          description: row.description,
+        };
+      });
+    } catch (error) {
+      // Settings table might not exist yet, use defaults
+      aiSettings = {
+        ai_provider: { value: 'google', description: 'AI Provider: google or openrouter' },
+        openrouter_api_key: { value: '', description: 'OpenRouter API Key' },
+        openrouter_model: { value: 'anthropic/claude-3.5-sonnet', description: 'OpenRouter Model Name' },
+        google_model: { value: 'gemini-2.0-flash-exp', description: 'Google Gemini Model Name' },
+      };
+    }
+
     return new Response(JSON.stringify({ 
       success: true, 
       data: {
@@ -96,7 +119,8 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
           total: (carCompanyCount[0] as any).count
         },
         upcomingBookings,
-        recentBookings
+        recentBookings,
+        aiSettings
       }
     }), {
       headers: { 'Content-Type': 'application/json', ...corsHeaders },

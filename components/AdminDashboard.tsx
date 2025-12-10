@@ -18,6 +18,13 @@ interface RecentQuotation {
   profit: number;
 }
 
+interface AISettings {
+  ai_provider?: { value: string; description?: string };
+  openrouter_api_key?: { value: string; description?: string };
+  openrouter_model?: { value: string; description?: string };
+  google_model?: { value: string; description?: string };
+}
+
 export const AdminDashboard: React.FC = () => {
   const [stats, setStats] = useState<QuotationStat>({
     total: 0,
@@ -28,10 +35,61 @@ export const AdminDashboard: React.FC = () => {
   const [recentQuotations, setRecentQuotations] = useState<RecentQuotation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [aiSettings, setAISettings] = useState<AISettings>({});
+  const [showAISettings, setShowAISettings] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   useEffect(() => {
     fetchData();
+    fetchAISettings();
   }, []);
+
+  const fetchAISettings = async () => {
+    try {
+      const response = await fetch('/api/settings');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          setAISettings(data.data);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch AI settings:', err);
+    }
+  };
+
+  const saveAISettings = async () => {
+    setIsSavingSettings(true);
+    try {
+      const updates: Record<string, string> = {};
+      if (aiSettings.ai_provider) updates.ai_provider = aiSettings.ai_provider.value;
+      if (aiSettings.openrouter_api_key) updates.openrouter_api_key = aiSettings.openrouter_api_key.value;
+      if (aiSettings.openrouter_model) updates.openrouter_model = aiSettings.openrouter_model.value;
+      if (aiSettings.google_model) updates.google_model = aiSettings.google_model.value;
+
+      const response = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setAISettings(data.data);
+          setShowAISettings(false);
+          alert('บันทึกการตั้งค่า AI สำเร็จ!');
+        }
+      } else {
+        alert('บันทึกไม่สำเร็จ กรุณาลองใหม่');
+      }
+    } catch (err) {
+      console.error('Failed to save AI settings:', err);
+      alert('บันทึกไม่สำเร็จ กรุณาลองใหม่');
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -200,6 +258,165 @@ export const AdminDashboard: React.FC = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* AI Settings Section */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-900">ตั้งค่า AI Provider</h2>
+          <button
+            onClick={() => setShowAISettings(!showAISettings)}
+            className="px-4 py-2 text-sm font-medium text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-200 transition-colors"
+          >
+            {showAISettings ? 'ซ่อน' : 'แสดงการตั้งค่า'}
+          </button>
+        </div>
+
+        {showAISettings && (
+          <div className="space-y-4 pt-4 border-t border-gray-200">
+            {/* AI Provider Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                AI Provider
+              </label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="ai_provider"
+                    value="google"
+                    checked={aiSettings.ai_provider?.value === 'google'}
+                    onChange={(e) => setAISettings({
+                      ...aiSettings,
+                      ai_provider: { value: e.target.value, description: 'Google Gemini' }
+                    })}
+                    className="w-4 h-4 text-amber-600"
+                  />
+                  <span className="text-sm text-gray-700">Google Gemini</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="ai_provider"
+                    value="openrouter"
+                    checked={aiSettings.ai_provider?.value === 'openrouter'}
+                    onChange={(e) => setAISettings({
+                      ...aiSettings,
+                      ai_provider: { value: e.target.value, description: 'OpenRouter' }
+                    })}
+                    className="w-4 h-4 text-amber-600"
+                  />
+                  <span className="text-sm text-gray-700">OpenRouter</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Google Model */}
+            {aiSettings.ai_provider?.value === 'google' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Google Model
+                </label>
+                <input
+                  type="text"
+                  value={aiSettings.google_model?.value || 'gemini-2.0-flash-exp'}
+                  onChange={(e) => setAISettings({
+                    ...aiSettings,
+                    google_model: { value: e.target.value }
+                  })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                  placeholder="gemini-2.0-flash-exp"
+                />
+                <p className="text-xs text-gray-500 mt-1">เช่น: gemini-2.0-flash-exp, gemini-1.5-pro</p>
+              </div>
+            )}
+
+            {/* OpenRouter Settings */}
+            {aiSettings.ai_provider?.value === 'openrouter' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    OpenRouter API Key
+                  </label>
+                  <input
+                    type="password"
+                    value={aiSettings.openrouter_api_key?.value || ''}
+                    onChange={(e) => setAISettings({
+                      ...aiSettings,
+                      openrouter_api_key: { value: e.target.value }
+                    })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                    placeholder="sk-or-v1-..."
+                  />
+                  <p className="text-xs text-gray-500 mt-1">API Key จาก <a href="https://openrouter.ai" target="_blank" rel="noopener noreferrer" className="text-amber-600 hover:underline">openrouter.ai</a></p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    OpenRouter Model
+                  </label>
+                  <input
+                    type="text"
+                    value={aiSettings.openrouter_model?.value || 'anthropic/claude-3.5-sonnet'}
+                    onChange={(e) => setAISettings({
+                      ...aiSettings,
+                      openrouter_model: { value: e.target.value }
+                    })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                    placeholder="anthropic/claude-3.5-sonnet"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">เช่น: anthropic/claude-3.5-sonnet, openai/gpt-4, google/gemini-pro</p>
+                </div>
+              </>
+            )}
+
+            {/* Save Button */}
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  setShowAISettings(false);
+                  fetchAISettings(); // Reset to saved values
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg border border-gray-300 transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={saveAISettings}
+                disabled={isSavingSettings}
+                className="px-4 py-2 text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isSavingSettings ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    กำลังบันทึก...
+                  </>
+                ) : (
+                  'บันทึกการตั้งค่า'
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Current AI Provider Display */}
+        {!showAISettings && (
+          <div className="pt-4 border-t border-gray-200">
+            <p className="text-sm text-gray-600">
+              <span className="font-medium">Provider ปัจจุบัน:</span>{' '}
+              {aiSettings.ai_provider?.value === 'openrouter' ? 'OpenRouter' : 'Google Gemini'}
+              {aiSettings.ai_provider?.value === 'openrouter' && aiSettings.openrouter_model && (
+                <span className="text-gray-500"> ({aiSettings.openrouter_model.value})</span>
+              )}
+              {aiSettings.ai_provider?.value === 'google' && aiSettings.google_model && (
+                <span className="text-gray-500"> ({aiSettings.google_model.value})</span>
+              )}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Quick Actions */}
