@@ -356,27 +356,37 @@ export const AdminDashboard: React.FC = () => {
                     OpenRouter Model
                   </label>
                   <select
-                    value={aiSettings.openrouter_model?.value || 'anthropic/claude-3.5-sonnet'}
+                    value={aiSettings.openrouter_model?.value || 'anthropic/claude-sonnet-4.5'}
                     onChange={(e) => setAISettings({
                       ...aiSettings,
                       openrouter_model: { value: e.target.value }
                     })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none bg-white"
                   >
-                    <optgroup label="🤖 Claude (Anthropic)">
-                      <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet (แนะนำ - สมดุล)</option>
-                      <option value="anthropic/claude-3-opus">Claude 3 Opus (แรงที่สุด)</option>
-                      <option value="anthropic/claude-3-haiku">Claude 3 Haiku (เร็วที่สุด)</option>
+                    <optgroup label="🤖 Claude (Anthropic) - ล่าสุด Jan 2025">
+                      <option value="anthropic/claude-sonnet-4.5">Claude Sonnet 4.5 ⭐ (ล่าสุด - แนะนำ)</option>
+                      <option value="anthropic/claude-opus-4.5">Claude Opus 4.5 (แรงที่สุด)</option>
+                      <option value="anthropic/claude-sonnet-4">Claude Sonnet 4</option>
+                      <option value="anthropic/claude-haiku-4.5">Claude Haiku 4.5 (เร็ว - ประหยัด)</option>
+                      <option value="anthropic/claude-3.7-sonnet">Claude 3.7 Sonnet</option>
+                      <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
+                      <option value="anthropic/claude-3.5-haiku">Claude 3.5 Haiku</option>
                     </optgroup>
-                    <optgroup label="🧠 GPT (OpenAI)">
-                      <option value="openai/gpt-4o">GPT-4o (ล่าสุด - แนะนำ)</option>
-                      <option value="openai/gpt-4-turbo">GPT-4 Turbo (เร็ว)</option>
-                      <option value="openai/gpt-3.5-turbo">GPT-3.5 Turbo (ประหยัด)</option>
+                    <optgroup label="🧠 GPT (OpenAI) - ล่าสุด Jan 2025">
+                      <option value="openai/gpt-5.1">GPT-5.1 ⭐ (ล่าสุด - แนะนำ)</option>
+                      <option value="openai/gpt-5">GPT-5 (แรงมาก)</option>
+                      <option value="openai/gpt-5-mini">GPT-5 Mini (ประหยัด)</option>
+                      <option value="openai/gpt-5-nano">GPT-5 Nano (เร็ว - ถูกที่สุด)</option>
+                      <option value="openai/gpt-4.1">GPT-4.1 (1M context)</option>
+                      <option value="openai/gpt-4.1-mini">GPT-4.1 Mini</option>
+                      <option value="openai/gpt-4o-mini">GPT-4o Mini</option>
                     </optgroup>
-                    <optgroup label="✨ Gemini (Google)">
-                      <option value="google/gemini-2.0-flash-exp">Gemini 2.0 Flash (เร็ว)</option>
-                      <option value="google/gemini-1.5-pro">Gemini 1.5 Pro (แรง)</option>
-                      <option value="google/gemini-pro">Gemini Pro (มาตรฐาน)</option>
+                    <optgroup label="✨ Gemini (Google) - ล่าสุด Jan 2025">
+                      <option value="google/gemini-2.5-flash">Gemini 2.5 Flash ⭐ (ยอดนิยม - แนะนำ)</option>
+                      <option value="google/gemini-3-pro-preview">Gemini 3 Pro Preview (ใหม่ล่าสุด)</option>
+                      <option value="google/gemini-2.5-pro">Gemini 2.5 Pro (แรง)</option>
+                      <option value="google/gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (เร็ว - ถูก)</option>
+                      <option value="google/gemini-2.0-flash-001">Gemini 2.0 Flash</option>
                     </optgroup>
                   </select>
                   <p className="text-xs text-gray-500 mt-1">เลือกโมเดลที่เหมาะกับงานของคุณ</p>

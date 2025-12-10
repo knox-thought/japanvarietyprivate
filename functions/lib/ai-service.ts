@@ -342,7 +342,7 @@ export async function loadAIConfig(env: { DB: D1Database; GEMINI_API_KEY?: strin
   // Provider and model selection come from database (if available)
   let provider: AIProvider = 'google';
   let googleModel = 'gemini-2.0-flash-exp';
-  let openrouterModel = 'anthropic/claude-3.5-sonnet';
+  let openrouterModel = 'anthropic/claude-sonnet-4.5';
 
   try {
     const { results } = await env.DB.prepare(`
