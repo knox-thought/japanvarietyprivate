@@ -107,17 +107,22 @@ IMPORTANT PRICE EXTRACTION:
 Return valid JSON matching the schema.
 `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-exp",
-      contents: prompt,
-      config: {
+    // Use getGenerativeModel approach like in generate-car-bookings.ts
+    const model = ai.getGenerativeModel({ 
+      model: 'gemini-2.0-flash-exp',
+      generationConfig: {
         responseMimeType: "application/json",
         responseSchema: responseSchema,
-        systemInstruction: "You are a precise data extraction assistant for travel quotations. Always extract exact prices as numbers.",
-      },
+      }
     });
 
-    const text = response.text;
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    });
+
+    const response = result.response;
+    const text = response.text(); // Use method call, not property
+    
     if (!text) {
       throw new Error('No response from AI');
     }
@@ -187,7 +192,7 @@ Return valid JSON matching the schema.
     const totalCost = processedDays.reduce((sum: number, day: any) => sum + day.costPrice, 0);
     const totalSelling = processedDays.reduce((sum: number, day: any) => sum + day.sellingPrice, 0);
 
-    const result = {
+    const resultData = {
       customerName: parsed.customerName || 'Unknown',
       days: processedDays,
       totalCost,
@@ -196,7 +201,7 @@ Return valid JSON matching the schema.
     };
 
     return new Response(
-      JSON.stringify(result),
+      JSON.stringify(resultData),
       {
         status: 200,
         headers: {
@@ -212,7 +217,8 @@ Return valid JSON matching the schema.
     return new Response(
       JSON.stringify({ 
         error: 'Failed to process quotation',
-        message: error instanceof Error ? error.message : 'Unknown error'
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
       }),
       {
         status: 500,
@@ -236,4 +242,3 @@ export const onRequestOptions = async () => {
     },
   });
 };
-
