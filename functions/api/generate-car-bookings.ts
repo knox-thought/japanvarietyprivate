@@ -149,18 +149,47 @@ ${quotationText}
 
 ให้วิเคราะห์และสร้างรายการ car_bookings ตามข้อมูลใน Quotation`;
 
-    // Use ai.models.generateContent pattern (same as generate-itinerary.ts)
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: carBookingsSchema,
-        temperature: 0.3,
-      },
-    });
+    // Retry logic for handling model overload (503 errors)
+    let text: string | undefined;
+    let lastError: any;
+    const maxRetries = 3;
+    const retryDelay = 2000; // 2 seconds
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        // Use ai.models.generateContent pattern (same as generate-itinerary.ts)
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.0-flash-exp',
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: carBookingsSchema,
+            temperature: 0.3,
+          },
+        });
 
-    const text = response.text; // Property, not method
+        text = response.text; // Property, not method
+        break; // Success, exit retry loop
+      } catch (error: any) {
+        lastError = error;
+        // Check if it's a 503/overload error
+        const errorMessage = error?.message || JSON.stringify(error);
+        const isOverloadError = errorMessage.includes('overloaded') || 
+                                errorMessage.includes('503') || 
+                                errorMessage.includes('UNAVAILABLE');
+        
+        if (isOverloadError && attempt < maxRetries - 1) {
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)));
+          continue;
+        }
+        throw error; // Re-throw if not overload error or last attempt
+      }
+    }
+    
+    if (!text) {
+      throw lastError || new Error('No response from AI after retries');
+    }
     let parsed;
     
     try {
@@ -229,12 +258,22 @@ ${quotationText}
     );
   } catch (error) {
     console.error('Error generating car bookings:', error);
+    
+    // Check if it's an overload error
+    const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
+    const isOverloadError = errorMessage.includes('overloaded') || 
+                            errorMessage.includes('503') || 
+                            errorMessage.includes('UNAVAILABLE');
+    
     return new Response(
       JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Failed to generate car bookings' 
+        error: isOverloadError 
+          ? 'AI model กำลังใช้งานหนัก กรุณาลองใหม่อีกครั้งในอีกสักครู่' 
+          : (error instanceof Error ? error.message : 'Failed to generate car bookings'),
+        code: isOverloadError ? 503 : 500
       }),
       { 
-        status: 500, 
+        status: isOverloadError ? 503 : 500, 
         headers: { 
           'Content-Type': 'application/json',
           ...(allowedOrigin && { 'Access-Control-Allow-Origin': allowedOrigin }),
