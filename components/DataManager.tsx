@@ -780,6 +780,10 @@ export const DataManager: React.FC = () => {
     setIsSaving(true);
     setError(null);
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/48cc9360-ec07-4560-afb6-42b7ab68cd52',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DataManager.tsx:777',message:'handleSubmit started',data:{activeTable,isEdit:!!editingItem,formDataKeys:Object.keys(formData),depositAmount:formData.deposit_amount,nextPaymentAmount:formData.next_payment_amount,currency:formData.currency,hasRouteQuotation:!!formData.route_quotation},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+
     try {
       const url = editingItem 
         ? `/api/data/${activeTable}/${editingItem.id}`
@@ -798,6 +802,10 @@ export const DataManager: React.FC = () => {
 
       const savedData = await response.json();
       const savedId = savedData.id || (editingItem ? editingItem.id : null);
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/48cc9360-ec07-4560-afb6-42b7ab68cd52',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DataManager.tsx:800',message:'Booking saved, got savedId',data:{savedId,hasRouteQuotation:!!formData.route_quotation,willGenerateCarBookings:activeTable==='bookings'&&savedId&&formData.route_quotation&&formData.route_quotation.trim()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
 
       // If this is a booking with route_quotation, generate car_bookings automatically
       if (
@@ -819,9 +827,16 @@ export const DataManager: React.FC = () => {
           if (generateResponse.ok) {
             const generateData = await generateResponse.json();
             
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/48cc9360-ec07-4560-afb6-42b7ab68cd52',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DataManager.tsx:820',message:'Car bookings generated, checking payment data',data:{savedId,depositAmount:formData.deposit_amount,nextPaymentAmount:formData.next_payment_amount,currency:formData.currency,carBookingsCount:generateData.insertedIds?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+            
             // Generate payments automatically if deposit_amount or next_payment_amount is set
             let paymentMessages: string[] = [];
             if (formData.deposit_amount && formData.deposit_amount > 0) {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/48cc9360-ec07-4560-afb6-42b7ab68cd52',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DataManager.tsx:825',message:'Creating deposit payment',data:{savedId,amount:formData.deposit_amount,currency:formData.currency||'JPY'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+              // #endregion
               try {
                 const depositResponse = await fetch('/api/data/payments', {
                   method: 'POST',
@@ -834,15 +849,37 @@ export const DataManager: React.FC = () => {
                     status: 'pending',
                   }),
                 });
+                // #region agent log
+                const depositResponseClone = depositResponse.clone();
+                const depositResponseText = await depositResponseClone.text();
+                fetch('http://127.0.0.1:7242/ingest/48cc9360-ec07-4560-afb6-42b7ab68cd52',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DataManager.tsx:844',message:'Deposit payment response',data:{status:depositResponse.status,ok:depositResponse.ok,responseText:depositResponseText.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                // #endregion
                 if (depositResponse.ok) {
                   paymentMessages.push('มัดจำ');
+                  // #region agent log
+                  fetch('http://127.0.0.1:7242/ingest/48cc9360-ec07-4560-afb6-42b7ab68cd52',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DataManager.tsx:839',message:'Deposit payment created successfully',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                  // #endregion
+                } else {
+                  // #region agent log
+                  fetch('http://127.0.0.1:7242/ingest/48cc9360-ec07-4560-afb6-42b7ab68cd52',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DataManager.tsx:841',message:'Deposit payment failed',data:{status:depositResponse.status,responseText:depositResponseText.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                  // #endregion
                 }
               } catch (depositErr) {
                 console.error('Error creating deposit payment:', depositErr);
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/48cc9360-ec07-4560-afb6-42b7ab68cd52',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DataManager.tsx:842',message:'Deposit payment exception',data:{error:depositErr instanceof Error?depositErr.message:String(depositErr)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                // #endregion
               }
+            } else {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/48cc9360-ec07-4560-afb6-42b7ab68cd52',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DataManager.tsx:824',message:'Skipping deposit payment - condition not met',data:{depositAmount:formData.deposit_amount,condition:formData.deposit_amount&&formData.deposit_amount>0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+              // #endregion
             }
             
             if (formData.next_payment_amount && formData.next_payment_amount > 0) {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/48cc9360-ec07-4560-afb6-42b7ab68cd52',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DataManager.tsx:847',message:'Creating next payment',data:{savedId,amount:formData.next_payment_amount,currency:formData.currency||'JPY',dueDate:formData.next_payment_due},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+              // #endregion
               try {
                 const nextPaymentResponse = await fetch('/api/data/payments', {
                   method: 'POST',
@@ -856,12 +893,31 @@ export const DataManager: React.FC = () => {
                     notes: formData.next_payment_due ? `กำหนดชำระ: ${formData.next_payment_due}` : null,
                   }),
                 });
+                // #region agent log
+                const nextPaymentResponseClone = nextPaymentResponse.clone();
+                const nextPaymentResponseText = await nextPaymentResponseClone.text();
+                fetch('http://127.0.0.1:7242/ingest/48cc9360-ec07-4560-afb6-42b7ab68cd52',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DataManager.tsx:866',message:'Next payment response',data:{status:nextPaymentResponse.status,ok:nextPaymentResponse.ok,responseText:nextPaymentResponseText.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                // #endregion
                 if (nextPaymentResponse.ok) {
                   paymentMessages.push('ยอดชำระถัดไป');
+                  // #region agent log
+                  fetch('http://127.0.0.1:7242/ingest/48cc9360-ec07-4560-afb6-42b7ab68cd52',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DataManager.tsx:861',message:'Next payment created successfully',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                  // #endregion
+                } else {
+                  // #region agent log
+                  fetch('http://127.0.0.1:7242/ingest/48cc9360-ec07-4560-afb6-42b7ab68cd52',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DataManager.tsx:863',message:'Next payment failed',data:{status:nextPaymentResponse.status,responseText:nextPaymentResponseText.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                  // #endregion
                 }
               } catch (nextPaymentErr) {
                 console.error('Error creating next payment:', nextPaymentErr);
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/48cc9360-ec07-4560-afb6-42b7ab68cd52',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DataManager.tsx:864',message:'Next payment exception',data:{error:nextPaymentErr instanceof Error?nextPaymentErr.message:String(nextPaymentErr)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                // #endregion
               }
+            } else {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/48cc9360-ec07-4560-afb6-42b7ab68cd52',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DataManager.tsx:845',message:'Skipping next payment - condition not met',data:{nextPaymentAmount:formData.next_payment_amount,condition:formData.next_payment_amount&&formData.next_payment_amount>0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+              // #endregion
             }
             
             // Build success message
