@@ -107,21 +107,17 @@ IMPORTANT PRICE EXTRACTION:
 Return valid JSON matching the schema.
 `;
 
-    // Use getGenerativeModel approach like in generate-car-bookings.ts
-    const model = ai.getGenerativeModel({ 
+    // Use ai.models.generateContent pattern (same as generate-itinerary.ts)
+    const response = await ai.models.generateContent({
       model: 'gemini-2.0-flash-exp',
-      generationConfig: {
+      contents: prompt,
+      config: {
         responseMimeType: "application/json",
         responseSchema: responseSchema,
-      }
+      },
     });
 
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    });
-
-    const response = result.response;
-    const text = response.text(); // Use method call, not property
+    const text = response.text; // Property, not method
     
     if (!text) {
       throw new Error('No response from AI');

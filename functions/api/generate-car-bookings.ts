@@ -149,22 +149,18 @@ ${quotationText}
 
 ให้วิเคราะห์และสร้างรายการ car_bookings ตามข้อมูลใน Quotation`;
 
-    const model = ai.getGenerativeModel({ 
+    // Use ai.models.generateContent pattern (same as generate-itinerary.ts)
+    const response = await ai.models.generateContent({
       model: 'gemini-2.0-flash-exp',
-      generationConfig: {
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: carBookingsSchema,
         temperature: 0.3,
       },
     });
 
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: {
-        responseSchema: carBookingsSchema,
-      },
-    });
-
-    const response = result.response;
-    const text = response.text();
+    const text = response.text; // Property, not method
     let parsed;
     
     try {
