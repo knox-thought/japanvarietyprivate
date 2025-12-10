@@ -338,7 +338,18 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
       retryDelay: 2000,
     });
 
-    const result = JSON.parse(text) as AIItineraryResponse;
+    let result: AIItineraryResponse;
+    try {
+      result = JSON.parse(text) as AIItineraryResponse;
+    } catch (parseError) {
+      // Try to extract JSON from markdown code blocks
+      const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (jsonMatch) {
+        result = JSON.parse(jsonMatch[1]) as AIItineraryResponse;
+      } else {
+        throw parseError;
+      }
+    }
 
     // Post-process: ALWAYS remove "0 Children" from quotationForOperator
     // Process line by line to preserve newline structure

@@ -129,7 +129,18 @@ Return valid JSON matching the schema.
       retryDelay: 2000,
     });
 
-    const parsed = JSON.parse(text);
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch (parseError) {
+      // Try to extract JSON from markdown code blocks
+      const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[1]);
+      } else {
+        throw parseError;
+      }
+    }
 
     // Function to normalize year in date string
     const normalizeDate = (dateStr: string): string => {

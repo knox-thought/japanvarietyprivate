@@ -172,11 +172,14 @@ async function generateWithOpenRouter(
       }
 
       const data = await response.json();
-      text = data.choices?.[0]?.message?.content;
+      let rawText = data.choices?.[0]?.message?.content;
 
-      if (!text) {
+      if (!rawText) {
         throw new Error('No content in OpenRouter response');
       }
+
+      // Clean the response text
+      text = cleanJsonResponse(rawText);
 
       break;
     } catch (error: any) {
@@ -200,6 +203,61 @@ async function generateWithOpenRouter(
   }
 
   return text;
+}
+
+/**
+ * Clean JSON response from AI - remove control characters and extract from markdown
+ */
+function cleanJsonResponse(text: string): string {
+  let cleaned = text;
+
+  // Extract JSON from markdown code blocks if present
+  const jsonMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (jsonMatch) {
+    cleaned = jsonMatch[1];
+  }
+
+  // Remove control characters except valid whitespace (space, tab, newline, carriage return)
+  // Control characters are 0x00-0x1F except 0x09 (tab), 0x0A (newline), 0x0D (carriage return)
+  cleaned = cleaned.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+
+  // Fix common issues with escaped characters in JSON strings
+  // Replace literal newlines inside JSON string values with escaped newlines
+  // This is tricky - we need to handle newlines that are inside string values
+  try {
+    // First, try to parse as-is
+    JSON.parse(cleaned);
+    return cleaned;
+  } catch (e) {
+    // If parsing fails, try to fix common issues
+    
+    // Replace unescaped newlines within strings
+    // Look for strings and escape their internal newlines
+    cleaned = cleaned.replace(/"([^"\\]|\\.)*"/g, (match) => {
+      // Replace actual newlines with escaped newlines inside the string
+      return match
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r')
+        .replace(/\t/g, '\\t');
+    });
+
+    // Try parsing again
+    try {
+      JSON.parse(cleaned);
+      return cleaned;
+    } catch (e2) {
+      // Last resort - aggressive cleanup
+      // Remove all newlines and extra spaces, keeping the structure
+      const aggressive = cleaned
+        .replace(/\n/g, ' ')
+        .replace(/\r/g, ' ')
+        .replace(/\t/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      return aggressive;
+    }
+  }
 }
 
 /**
