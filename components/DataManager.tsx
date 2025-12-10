@@ -1274,6 +1274,7 @@ export const DataManager: React.FC = () => {
             </button>
           </div>
         ) : (
+          <>
           {/* Bulk Delete Bar */}
           {selectedItems.length > 0 && (
             <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between">
@@ -1418,6 +1419,7 @@ export const DataManager: React.FC = () => {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 
