@@ -355,17 +355,31 @@ export const AdminDashboard: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     OpenRouter Model
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={aiSettings.openrouter_model?.value || 'anthropic/claude-3.5-sonnet'}
                     onChange={(e) => setAISettings({
                       ...aiSettings,
                       openrouter_model: { value: e.target.value }
                     })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
-                    placeholder="anthropic/claude-3.5-sonnet"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">เช่น: anthropic/claude-3.5-sonnet, openai/gpt-4, google/gemini-pro</p>
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none bg-white"
+                  >
+                    <optgroup label="🤖 Claude (Anthropic)">
+                      <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet (แนะนำ - สมดุล)</option>
+                      <option value="anthropic/claude-3-opus">Claude 3 Opus (แรงที่สุด)</option>
+                      <option value="anthropic/claude-3-haiku">Claude 3 Haiku (เร็วที่สุด)</option>
+                    </optgroup>
+                    <optgroup label="🧠 GPT (OpenAI)">
+                      <option value="openai/gpt-4o">GPT-4o (ล่าสุด - แนะนำ)</option>
+                      <option value="openai/gpt-4-turbo">GPT-4 Turbo (เร็ว)</option>
+                      <option value="openai/gpt-3.5-turbo">GPT-3.5 Turbo (ประหยัด)</option>
+                    </optgroup>
+                    <optgroup label="✨ Gemini (Google)">
+                      <option value="google/gemini-2.0-flash-exp">Gemini 2.0 Flash (เร็ว)</option>
+                      <option value="google/gemini-1.5-pro">Gemini 1.5 Pro (แรง)</option>
+                      <option value="google/gemini-pro">Gemini Pro (มาตรฐาน)</option>
+                    </optgroup>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">เลือกโมเดลที่เหมาะกับงานของคุณ</p>
                 </div>
               </>
             )}
