@@ -20,11 +20,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-// GET - Retrieve all settings
+// GET - Retrieve all settings (only provider and model selection, not API keys)
 export const onRequestGet = async ({ env }: { env: Env }) => {
   try {
     const { results } = await env.DB.prepare(`
-      SELECT key, value, description FROM settings
+      SELECT key, value, description FROM settings WHERE key IN ('ai_provider', 'openrouter_model', 'google_model')
     `).all();
 
     // Convert array to object for easier access
@@ -66,7 +66,8 @@ export const onRequestPut = async ({ request, env }: { request: Request; env: En
       );
     }
 
-    // Update each setting
+    // Update each setting (only allow provider and model selection, not API keys)
+    const allowedKeys = ['ai_provider', 'openrouter_model', 'google_model'];
     const stmt = env.DB.prepare(`
       INSERT INTO settings (key, value, updated_at)
       VALUES (?, ?, CURRENT_TIMESTAMP)
@@ -76,6 +77,11 @@ export const onRequestPut = async ({ request, env }: { request: Request; env: En
     `);
 
     for (const [key, value] of Object.entries(updates)) {
+      // Only allow specific keys (API keys are stored in Cloudflare env vars)
+      if (!allowedKeys.includes(key)) {
+        continue; // Skip disallowed keys
+      }
+      
       if (typeof value === 'object' && value !== null && 'value' in value) {
         await stmt.bind(key, String(value.value)).run();
       } else {

@@ -74,11 +74,11 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
       SELECT COUNT(*) as count FROM car_companies WHERE is_active = 1
     `).all();
 
-    // Load AI settings
+    // Load AI settings (provider and model selection only - API keys are in env vars)
     let aiSettings: Record<string, { value: string; description?: string }> = {};
     try {
       const { results: settingsResults } = await env.DB.prepare(`
-        SELECT key, value, description FROM settings WHERE key IN ('ai_provider', 'openrouter_api_key', 'openrouter_model', 'google_model')
+        SELECT key, value, description FROM settings WHERE key IN ('ai_provider', 'openrouter_model', 'google_model')
       `).all();
       
       (settingsResults || []).forEach((row: any) => {
@@ -89,12 +89,17 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
       });
     } catch (error) {
       // Settings table might not exist yet, use defaults
-      aiSettings = {
-        ai_provider: { value: 'google', description: 'AI Provider: google or openrouter' },
-        openrouter_api_key: { value: '', description: 'OpenRouter API Key' },
-        openrouter_model: { value: 'anthropic/claude-3.5-sonnet', description: 'OpenRouter Model Name' },
-        google_model: { value: 'gemini-2.0-flash-exp', description: 'Google Gemini Model Name' },
-      };
+    }
+    
+    // Set defaults if not found
+    if (!aiSettings.ai_provider) {
+      aiSettings.ai_provider = { value: 'google', description: 'AI Provider: google or openrouter' };
+    }
+    if (!aiSettings.openrouter_model) {
+      aiSettings.openrouter_model = { value: 'anthropic/claude-3.5-sonnet', description: 'OpenRouter Model Name' };
+    }
+    if (!aiSettings.google_model) {
+      aiSettings.google_model = { value: 'gemini-2.0-flash-exp', description: 'Google Gemini Model Name' };
     }
 
     return new Response(JSON.stringify({ 

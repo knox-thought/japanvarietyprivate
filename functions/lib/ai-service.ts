@@ -273,12 +273,22 @@ function convertPropertyToJSONSchema(prop: Schema): any {
 }
 
 /**
- * Load AI configuration from database
+ * Load AI configuration from database and environment variables
+ * API Keys are stored in Cloudflare Environment Variables (not in database)
  */
 export async function loadAIConfig(env: { DB: D1Database; GEMINI_API_KEY?: string; OPENROUTER_API_KEY?: string }): Promise<AIConfig> {
+  // API Keys always come from environment variables (Cloudflare settings)
+  const googleApiKey = env.GEMINI_API_KEY || '';
+  const openrouterApiKey = env.OPENROUTER_API_KEY || '';
+
+  // Provider and model selection come from database (if available)
+  let provider: AIProvider = 'google';
+  let googleModel = 'gemini-2.0-flash-exp';
+  let openrouterModel = 'anthropic/claude-3.5-sonnet';
+
   try {
     const { results } = await env.DB.prepare(`
-      SELECT key, value FROM settings WHERE key IN ('ai_provider', 'openrouter_api_key', 'openrouter_model', 'google_model')
+      SELECT key, value FROM settings WHERE key IN ('ai_provider', 'openrouter_model', 'google_model')
     `).all();
 
     const settings: Record<string, string> = {};
@@ -286,23 +296,24 @@ export async function loadAIConfig(env: { DB: D1Database; GEMINI_API_KEY?: strin
       settings[row.key] = row.value;
     });
 
-    const provider = (settings.ai_provider || 'google') as AIProvider;
-
-    return {
-      provider,
-      googleApiKey: env.GEMINI_API_KEY || '',
-      openrouterApiKey: settings.openrouter_api_key || env.OPENROUTER_API_KEY || '',
-      googleModel: settings.google_model || 'gemini-2.0-flash-exp',
-      openrouterModel: settings.openrouter_model || 'anthropic/claude-3.5-sonnet',
-    };
+    if (settings.ai_provider) {
+      provider = settings.ai_provider as AIProvider;
+    }
+    if (settings.google_model) {
+      googleModel = settings.google_model;
+    }
+    if (settings.openrouter_model) {
+      openrouterModel = settings.openrouter_model;
+    }
   } catch (error) {
-    // Fallback to default config if settings table doesn't exist
-    return {
-      provider: 'google',
-      googleApiKey: env.GEMINI_API_KEY || '',
-      openrouterApiKey: env.OPENROUTER_API_KEY || '',
-      googleModel: 'gemini-2.0-flash-exp',
-      openrouterModel: 'anthropic/claude-3.5-sonnet',
-    };
+    // Settings table might not exist yet, use defaults
   }
+
+  return {
+    provider,
+    googleApiKey,
+    openrouterApiKey,
+    googleModel,
+    openrouterModel,
+  };
 }
