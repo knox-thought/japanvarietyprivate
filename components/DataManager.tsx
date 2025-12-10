@@ -818,11 +818,66 @@ export const DataManager: React.FC = () => {
 
           if (generateResponse.ok) {
             const generateData = await generateResponse.json();
-            showSuccess(
-              editingItem 
-                ? 'อัพเดทข้อมูลสำเร็จ! สร้างการจองรถอัตโนมัติแล้ว' 
-                : `เพิ่มข้อมูลสำเร็จ! สร้างการจองรถ ${generateData.insertedIds?.length || 0} รายการอัตโนมัติแล้ว`
-            );
+            
+            // Generate payments automatically if deposit_amount or next_payment_amount is set
+            let paymentMessages: string[] = [];
+            if (formData.deposit_amount && formData.deposit_amount > 0) {
+              try {
+                const depositResponse = await fetch('/api/data/payments', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    booking_id: savedId,
+                    payment_type: 'deposit',
+                    amount: formData.deposit_amount,
+                    currency: formData.currency || 'JPY',
+                    status: 'pending',
+                  }),
+                });
+                if (depositResponse.ok) {
+                  paymentMessages.push('มัดจำ');
+                }
+              } catch (depositErr) {
+                console.error('Error creating deposit payment:', depositErr);
+              }
+            }
+            
+            if (formData.next_payment_amount && formData.next_payment_amount > 0) {
+              try {
+                const nextPaymentResponse = await fetch('/api/data/payments', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    booking_id: savedId,
+                    payment_type: 'partial',
+                    amount: formData.next_payment_amount,
+                    currency: formData.currency || 'JPY',
+                    status: 'pending',
+                    notes: formData.next_payment_due ? `กำหนดชำระ: ${formData.next_payment_due}` : null,
+                  }),
+                });
+                if (nextPaymentResponse.ok) {
+                  paymentMessages.push('ยอดชำระถัดไป');
+                }
+              } catch (nextPaymentErr) {
+                console.error('Error creating next payment:', nextPaymentErr);
+              }
+            }
+            
+            // Build success message
+            let successMsg = editingItem 
+              ? 'อัพเดทข้อมูลสำเร็จ!' 
+              : `เพิ่มข้อมูลสำเร็จ!`;
+            
+            if (generateData.insertedIds?.length > 0) {
+              successMsg += ` สร้างการจองรถ ${generateData.insertedIds.length} รายการอัตโนมัติ`;
+            }
+            
+            if (paymentMessages.length > 0) {
+              successMsg += ` สร้างการชำระเงิน (${paymentMessages.join(', ')}) อัตโนมัติ`;
+            }
+            
+            showSuccess(successMsg);
           } else {
             // Booking saved but car bookings generation failed
             showSuccess(editingItem ? 'อัพเดทข้อมูลสำเร็จ!' : 'เพิ่มข้อมูลสำเร็จ! (ไม่สามารถสร้างการจองรถอัตโนมัติได้)');
