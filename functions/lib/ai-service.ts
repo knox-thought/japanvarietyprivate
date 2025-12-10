@@ -123,6 +123,38 @@ async function generateWithOpenRouter(
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
+      // Build request body
+      const requestBody: any = {
+        model,
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature,
+      };
+
+      // Add JSON schema if provided (only for models that support it)
+      // Note: Not all models support structured output, so we'll try with schema first
+      // and fall back to regular generation if needed
+      if (jsonSchema) {
+        // For Claude models, use response_format
+        if (model.includes('claude') || model.includes('anthropic')) {
+          requestBody.response_format = {
+            type: 'json_schema',
+            json_schema: {
+              name: 'response',
+              schema: jsonSchema,
+              strict: true,
+            },
+          };
+        } else {
+          // For other models, add schema instruction to prompt
+          requestBody.messages[0].content = `${prompt}\n\nIMPORTANT: You must respond with valid JSON matching this schema:\n${JSON.stringify(jsonSchema, null, 2)}`;
+        }
+      }
+
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -131,48 +163,7 @@ async function generateWithOpenRouter(
           'HTTP-Referer': 'https://japanvarietyprivate.knox-thought.com',
           'X-Title': 'Japan Variety Private',
         },
-        // Build request body
-        const requestBody: any = {
-          model,
-          messages: [
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-          temperature,
-        };
-
-        // Add JSON schema if provided (only for models that support it)
-        // Note: Not all models support structured output, so we'll try with schema first
-        // and fall back to regular generation if needed
-        if (jsonSchema) {
-          // For Claude models, use response_format
-          if (model.includes('claude') || model.includes('anthropic')) {
-            requestBody.response_format = {
-              type: 'json_schema',
-              json_schema: {
-                name: 'response',
-                schema: jsonSchema,
-                strict: true,
-              },
-            };
-          } else {
-            // For other models, add schema instruction to prompt
-            requestBody.messages[0].content = `${prompt}\n\nIMPORTANT: You must respond with valid JSON matching this schema:\n${JSON.stringify(jsonSchema, null, 2)}`;
-          }
-        }
-
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${config.openrouterApiKey}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://japanvarietyprivate.knox-thought.com',
-            'X-Title': 'Japan Variety Private',
-          },
-          body: JSON.stringify(requestBody),
-        });
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
