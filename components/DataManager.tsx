@@ -634,8 +634,12 @@ export const DataManager: React.FC = () => {
            trimmedLine.includes('(') || 
            /^\d{4,}$/.test(trimmedLine));
         
-        const isPriceLine = looksLikePrice && 
-          !isInWaitingTimeSection(i, lines);
+        // Check if this line is NOT in WAITING TIME RULES section
+        const isNotInWaitingTimeSection = waitingTimeRulesStartIndex === -1 || 
+          i < waitingTimeRulesStartIndex || 
+          (waitingTimeRulesEndIndex !== -1 && i >= waitingTimeRulesEndIndex);
+        
+        const isPriceLine = looksLikePrice && isNotInWaitingTimeSection;
         
         if (isPriceLine) {
           // This is likely a price line - calculate new price
