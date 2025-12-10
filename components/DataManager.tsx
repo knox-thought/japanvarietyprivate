@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import clsx from 'clsx';
 import { ImageUpload } from './ImageUpload';
+import { CarBookingCalendar } from './CarBookingCalendar';
 
 type TableName = 'customers' | 'car_companies' | 'bookings' | 'car_bookings' | 'payments' | 'notifications' | 'quotations' | 'users';
 
@@ -1275,6 +1276,32 @@ export const DataManager: React.FC = () => {
           </div>
         ) : (
           <>
+          {/* Calendar View for Car Bookings */}
+          {activeTable === 'car_bookings' && (
+            <div className="mb-6">
+              <CarBookingCalendar
+                bookings={data.map((item: any) => ({
+                  id: item.id,
+                  booking_id: item.booking_id,
+                  booking_code: relatedData.bookings?.find((b: any) => b.id === item.booking_id)?.booking_code,
+                  customer_name: relatedData.bookings?.find((b: any) => b.id === item.booking_id)?.customer_name,
+                  service_date: item.service_date,
+                  vehicle_type: item.vehicle_type,
+                  service_type: item.service_type,
+                  pickup_location: item.pickup_location,
+                  dropoff_location: item.dropoff_location,
+                  pickup_time: item.pickup_time,
+                  status: item.status,
+                  notes: item.notes,
+                }))}
+                onBookingClick={(booking) => {
+                  const item = data.find((d: any) => d.id === booking.id);
+                  if (item) openDetailView(item);
+                }}
+              />
+            </div>
+          )}
+
           {/* Bulk Delete Bar */}
           {selectedItems.length > 0 && (
             <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between">
