@@ -439,7 +439,8 @@ export const DataManager: React.FC = () => {
 
   // Generate output text similar to QuotationProcessor Output 1 (selling price breakdown)
   // Format: Keep original structure but replace prices with calculated prices (×1.30×1.07)
-  const generateSellingPriceOutput = (data: any, customerName: string = '', operatorResponse?: string) => {
+  // Returns: { output: string, totalPrice: number }
+  const generateSellingPriceOutput = (data: any, customerName: string = '', operatorResponse?: string): { output: string, totalPrice: number } => {
     const roundUpTo1000 = (price: number): number => {
       return Math.ceil(price / 1000) * 1000;
     };
@@ -548,7 +549,6 @@ export const DataManager: React.FC = () => {
       const lines = operatorResponse.split('\n');
       const processedLines: string[] = [];
       const calculatedPrices: number[] = []; // Store all calculated prices for total calculation
-      let totalLineToInsert: string | null = null; // Store total line to insert at the end
       
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -556,14 +556,17 @@ export const DataManager: React.FC = () => {
         
         // Skip WAITING TIME RULES section - don't process price lines there
         if (isInWaitingTimeSection(i, lines)) {
-          processedLines.push(line);
+          // Only keep WAITING TIME RULES content, skip any total lines
+          if (!(trimmedLine.includes('=') && trimmedLine.includes('in total'))) {
+            processedLines.push(line);
+          }
           continue;
         }
         
-        // Check if this is a total line - save it to insert at the end instead of inserting now
+        // Remove ALL total lines from input (whether before or after WAITING TIME RULES)
         if (trimmedLine.includes('=') && trimmedLine.includes('in total')) {
-          // Don't process it now, we'll insert it at the end
-          continue; // Skip this line for now
+          // Skip this line completely - we'll add our own calculated total at the end
+          continue;
         }
         
         // Check if this line is a price line
@@ -614,25 +617,14 @@ export const DataManager: React.FC = () => {
         }
       }
       
-      // After processing all lines, insert the calculated total line at the end
-      // But before any WAITING TIME RULES section
+      // After processing all lines, insert the calculated total line at the VERY END
+      // (after all WAITING TIME RULES content)
+      let calculatedTotal = 0;
       if (calculatedPrices.length > 0) {
-        const total = calculatedPrices.reduce((sum, price) => sum + price, 0);
+        calculatedTotal = calculatedPrices.reduce((sum, price) => sum + price, 0);
         const totalExpression = calculatedPrices.join('+');
-        totalLineToInsert = `${totalExpression} = ${total} in total`;
-        
-        // Find where to insert: before WAITING TIME RULES section, or at the end
-        const waitingTimeIndex = processedLines.findIndex((l) => 
-          l.toLowerCase().includes('waiting time rules')
-        );
-        
-        if (waitingTimeIndex !== -1) {
-          // Insert before WAITING TIME RULES section
-          processedLines.splice(waitingTimeIndex, 0, totalLineToInsert);
-        } else {
-          // Insert at the end
-          processedLines.push(totalLineToInsert);
-        }
+        // Always add at the end, regardless of WAITING TIME RULES position
+        processedLines.push(`${totalExpression} = ${calculatedTotal} in total`);
       }
       
       output = processedLines.join('\n');
@@ -641,6 +633,8 @@ export const DataManager: React.FC = () => {
       if (customerName) {
         output = `${customerName}\n\n${output}`;
       }
+      
+      return { output, totalPrice: calculatedTotal };
     } else {
       // Fallback: Simple format if no operatorResponse
       data.days.forEach((day: any) => {
@@ -661,16 +655,16 @@ export const DataManager: React.FC = () => {
         return sum + calculateSellingPrice(day.costPrice);
       }, 0);
       output += `\n${totalSelling} in total\n`;
+      
+      if (data.notes && data.notes.length > 0) {
+        output += `\n`;
+        data.notes.forEach((note: string) => {
+          output += `${note}\n`;
+        });
+      }
+      
+      return { output, totalPrice: totalSelling };
     }
-
-    if (data.notes && data.notes.length > 0) {
-      output += `\n`;
-      data.notes.forEach((note: string) => {
-        output += `${note}\n`;
-      });
-    }
-
-    return output;
   };
 
   // Process quotation cost and generate selling price output to fill route_quotation
@@ -705,28 +699,17 @@ export const DataManager: React.FC = () => {
 
       // Generate output text (like QuotationProcessor Output 1)
       // Pass operatorResponse to preserve original format
-      const outputText = generateSellingPriceOutput(data, customerName, operatorResponse || '');
-
-      // Calculate totals for display (×1.30×1.07 combined)
-      const roundUpTo1000 = (price: number): number => {
-        return Math.ceil(price / 1000) * 1000;
-      };
-      const calculateSellingPrice = (costPrice: number): number => {
-        return roundUpTo1000(costPrice * 1.30 * 1.07);
-      };
-      const totalSellingWithVAT = data.days.reduce((sum: number, day: any) => {
-        return sum + calculateSellingPrice(day.costPrice);
-      }, 0);
+      const { output: outputText, totalPrice: calculatedTotalPrice } = generateSellingPriceOutput(data, customerName, operatorResponse || '');
 
       // Update form data: fill route_quotation with output text and store cost_price
       setFormData(prev => ({
         ...prev,
         route_quotation: outputText,
         cost_price: totalCostPrice,
-        total_price: totalSellingWithVAT // Still store total for reference
+        total_price: calculatedTotalPrice // Use calculated total from generateSellingPriceOutput
       }));
 
-      showSuccess(`✅ คำนวณราคาขายสำเร็จและเติมลง Quotation เส้นทางแล้ว (รวม: ¥${totalSellingWithVAT.toLocaleString()})`);
+      showSuccess(`✅ คำนวณราคาขายสำเร็จและเติมลง Quotation เส้นทางแล้ว (รวม: ¥${calculatedTotalPrice.toLocaleString()})`);
     } catch (err) {
       console.error('Failed to process quotation cost:', err);
       setError('ไม่สามารถคำนวณราคาขายได้ กรุณาลองใหม่');
