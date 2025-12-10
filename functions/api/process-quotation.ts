@@ -63,8 +63,18 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
               vehicle: { type: Type.STRING, description: "Vehicle type (e.g., Coaster 17 seats, Alphard)" },
               serviceType: { type: Type.STRING, description: "Service type (e.g., Charter 10H, Pick up only, Drop off)" },
               route: { type: Type.STRING, description: "Full route description" },
-              costPrice: { type: Type.NUMBER, description: "Cost price in yen (number only, extracted from operator response)" },
-              costPriceNote: { type: Type.STRING, description: "Any additional notes about the price (e.g., +5000yen New Year Fee)" },
+              baseCostPrice: { type: Type.NUMBER, description: "BASE cost price ONLY (without add-ons) in yen" },
+              addOns: { 
+                type: Type.ARRAY, 
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    amount: { type: Type.NUMBER, description: "Add-on amount in yen" },
+                    description: { type: Type.STRING, description: "Add-on description (e.g., Baby seat, Accommodation driver)" }
+                  }
+                },
+                description: "Array of add-on items with amount and description"
+              },
               currency: { type: Type.STRING, description: "Currency symbol, default ¥" }
             }
           }
@@ -90,33 +100,32 @@ TASK:
    - Vehicle type
    - Service type
    - Route (if mentioned)
-   - Base cost price as a NUMBER
-3. CRITICAL PRICE PARSING - Handle dynamic add-ons:
-   - Parse patterns like: "180000yen" → costPrice: 180000
+   - BASE cost price ONLY (without add-ons) as baseCostPrice
+   - Add-ons as SEPARATE items in the addOns array
+
+3. CRITICAL PRICE PARSING - KEEP BASE AND ADD-ONS SEPARATE:
+   - Parse patterns like: "180000yen" → baseCostPrice: 180000, addOns: []
    - Parse patterns like: "170000yen+15000(Accommodation driver)+2000(Baby seat)+5000yen(New Year fee)"
-     → costPrice: 192000 (sum of all: 170000+15000+2000+5000)
-     → costPriceNote: "+15000(Accommodation driver) +2000(Baby seat) +5000yen(New Year fee)"
-   - Parse patterns like: "170000yen+5000yen（New Year Service Fee）"
-     → costPrice: 175000
-     → costPriceNote: "+5000yen（New Year Service Fee）"
-   - IMPORTANT: Include ALL add-on amounts (in parentheses or after + sign) in the total costPrice
-   - The costPriceNote should list all add-ons clearly
-4. Extract any important operational notes/conditions from the operator response (time restrictions, special arrangements, etc.) into the notes array
+     → baseCostPrice: 170000 (BASE ONLY)
+     → addOns: [
+         { amount: 15000, description: "Accommodation driver" },
+         { amount: 2000, description: "Baby seat" },
+         { amount: 5000, description: "New Year fee" }
+       ]
+   - Parse patterns like: "79000+2000*2(Baby seat)"
+     → baseCostPrice: 79000
+     → addOns: [{ amount: 4000, description: "2 Baby seats" }]
+   - DO NOT sum add-ons into baseCostPrice! Keep them separate.
+
+4. Extract any important operational notes/conditions from the operator response into the notes array
 5. Currency is always "¥" for Japanese Yen
 
 IMPORTANT DATE PARSING RULES:
 - Dates should be output in YYYY-MM-DD format using CE (Christian Era / ค.ศ.) year
-- If input year is 2-digit and >= 50 (like "69", "68"), it's Buddhist Era short form: 2569 → CE 2026, 2568 → CE 2025
+- If input year is 2-digit and >= 50 (like "69", "68"), it's Buddhist Era short form: 2569 → CE 2026
 - If input year is 2-digit and < 50 (like "25", "26"), it's CE: 2025, 2026
 - If input year is 4-digit and >= 2500, it's Buddhist Era: subtract 543 to get CE
-- If input year is 4-digit and < 2500, it's already CE
-- Example: "15/02/69" → "2026-02-15", "15/02/26" → "2026-02-15", "15/02/2569" → "2026-02-15"
-
-IMPORTANT PRICE EXTRACTION:
-- Parse ALL price components including add-ons: base price + all additional fees = total costPrice
-- Common add-on patterns: +15000(Accommodation driver), +2000(Baby seat), +5000yen(New Year fee)
-- If there are multiple add-ons, sum them all and include descriptions in costPriceNote
-- The costPrice MUST be the TOTAL (base + all add-ons)
+- Example: "15/02/69" → "2026-02-15"
 
 Return valid JSON matching the schema.
 `;
@@ -186,24 +195,52 @@ Return valid JSON matching the schema.
       return `${year}-${month}-${day}`;
     };
 
-    // Calculate selling prices (costPrice × markupMultiplier)
-    const multiplier = markupMultiplier || 1.391;
+    // Calculate selling prices with markup
+    const MARKUP = 1.391; // 30% margin + 7% VAT combined
     
-    // Round up to nearest 1000 yen
-    const roundUpTo1000 = (price: number): number => {
-      return Math.ceil(price / 1000) * 1000;
+    // Smart rounding: >= 10000 round to nearest 1000, < 10000 round to nearest 100
+    const smartRoundUp = (price: number): number => {
+      if (price >= 10000) {
+        return Math.ceil(price / 1000) * 1000;
+      } else {
+        return Math.ceil(price / 100) * 100;
+      }
     };
     
-    const processedDays = parsed.days.map((day: any) => ({
-      ...day,
-      date: normalizeDate(day.date), // Fix year conversion (69 -> 2026, not 2069)
-      costPrice: day.costPrice,
-      sellingPrice: roundUpTo1000(day.costPrice * multiplier), // Round up to nearest 1000 yen
-      currency: day.currency || '¥'
-    }));
-
-    const totalCost = processedDays.reduce((sum: number, day: any) => sum + day.costPrice, 0);
-    const totalSelling = processedDays.reduce((sum: number, day: any) => sum + day.sellingPrice, 0);
+    const processedDays = parsed.days.map((day: any) => {
+      const baseCost = day.baseCostPrice || day.costPrice || 0;
+      const addOns = day.addOns || [];
+      
+      // Calculate total cost (base + all add-ons)
+      const addOnsTotal = addOns.reduce((sum: number, addon: any) => sum + (addon.amount || 0), 0);
+      const totalCost = baseCost + addOnsTotal;
+      
+      // Calculate selling prices with smart rounding
+      const baseSellingPrice = smartRoundUp(baseCost * MARKUP);
+      const addOnsWithSelling = addOns.map((addon: any) => ({
+        ...addon,
+        sellingPrice: smartRoundUp((addon.amount || 0) * MARKUP)
+      }));
+      const addOnsSellingTotal = addOnsWithSelling.reduce((sum: number, addon: any) => sum + addon.sellingPrice, 0);
+      const totalSellingPrice = baseSellingPrice + addOnsSellingTotal;
+      
+      return {
+        date: normalizeDate(day.date),
+        vehicle: day.vehicle,
+        serviceType: day.serviceType,
+        route: day.route,
+        baseCostPrice: baseCost,
+        addOns: addOnsWithSelling,
+        totalCostPrice: totalCost,
+        baseSellingPrice,
+        totalSellingPrice,
+        currency: day.currency || '¥'
+      };
+    });
+    
+    // Calculate totals
+    const totalCost = processedDays.reduce((sum: number, day: any) => sum + day.totalCostPrice, 0);
+    const totalSelling = processedDays.reduce((sum: number, day: any) => sum + day.totalSellingPrice, 0);
 
     const resultData = {
       customerName: parsed.customerName || 'Unknown',
