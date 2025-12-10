@@ -533,31 +533,21 @@ export const DataManager: React.FC = () => {
 
     // If we have operatorResponse, try to parse it to preserve original format
     if (operatorResponse) {
-      // Find where WAITING TIME RULES section starts
-      const isInWaitingTimeSection = (lineIndex: number, allLines: string[]) => {
-        // Find the line that contains "WAITING TIME RULES"
-        const rulesLineIndex = allLines.findIndex((l) => 
-          l.toLowerCase().includes('waiting time rules')
-        );
-        if (rulesLineIndex === -1) return false;
-        // Everything from WAITING TIME RULES line onwards should be skipped
-        return lineIndex >= rulesLineIndex;
-      };
-      
       // Simple approach: Find and replace all price lines
       // Price lines are lines that start with numbers (like "75000+2000*2(3 Baby seat)")
       const lines = operatorResponse.split('\n');
       const processedLines: string[] = [];
       const calculatedPrices: number[] = []; // Store all calculated prices for total calculation
+      let waitingTimeRulesStartIndex = -1; // Track where the first WAITING TIME RULES section starts
+      let waitingTimeRulesEndIndex = -1; // Track where the first WAITING TIME RULES section ends
       let waitingTimeRulesFound = false; // Track if we've already processed WAITING TIME RULES section
-      let firstWaitingTimeRulesEndIndex = -1; // Track where the first WAITING TIME RULES section ends
       
-      // First pass: find where the first WAITING TIME RULES section ends
-      // Look for the last bullet point in the first WAITING TIME RULES section
+      // First pass: find where the first WAITING TIME RULES section starts and ends
       for (let i = 0; i < lines.length; i++) {
         const trimmedLine = lines[i].trim().toLowerCase();
-        if (trimmedLine.includes('waiting time rules') && firstWaitingTimeRulesEndIndex === -1) {
-          // Find the end of this section (last bullet point)
+        if (trimmedLine.includes('waiting time rules') && waitingTimeRulesStartIndex === -1) {
+          waitingTimeRulesStartIndex = i;
+          // Find the end of this section (after the last bullet point)
           for (let j = i + 1; j < lines.length; j++) {
             const nextLine = lines[j].trim();
             const nextLineLower = nextLine.toLowerCase();
@@ -568,16 +558,16 @@ export const DataManager: React.FC = () => {
                 !nextLineLower.includes('transfer') &&
                 !nextLineLower.includes('exceeding') &&
                 !nextLineLower.includes('free waiting')) {
-              firstWaitingTimeRulesEndIndex = j;
+              waitingTimeRulesEndIndex = j;
               break;
             }
           }
           // If we didn't find an end, use the line after the last bullet
-          if (firstWaitingTimeRulesEndIndex === -1) {
+          if (waitingTimeRulesEndIndex === -1) {
             // Find the last bullet point
             for (let j = lines.length - 1; j >= i; j--) {
               if (lines[j].trim().startsWith('-')) {
-                firstWaitingTimeRulesEndIndex = j + 1;
+                waitingTimeRulesEndIndex = j + 1;
                 break;
               }
             }
@@ -596,40 +586,37 @@ export const DataManager: React.FC = () => {
           continue;
         }
         
-        // Skip everything after the first WAITING TIME RULES section ends
+        // Handle WAITING TIME RULES section - keep the first occurrence with bullet points
+        if (waitingTimeRulesStartIndex !== -1 && 
+            i >= waitingTimeRulesStartIndex && 
+            (waitingTimeRulesEndIndex === -1 || i < waitingTimeRulesEndIndex)) {
+          // This is within the first WAITING TIME RULES section
+          // Check if this is inline format (all rules in one line with dashes)
+          if (trimmedLine.toLowerCase().includes('waiting time rules:') && 
+              trimmedLine.includes('-') && 
+              trimmedLine.length > 100) {
+            // This is inline format (long line with multiple rules), skip it
+            continue;
+          }
+          // Keep all lines in the first WAITING TIME RULES section (header + bullet points)
+          processedLines.push(line);
+          // Mark that we've processed WAITING TIME RULES section
+          if (trimmedLine.toLowerCase().includes('waiting time rules')) {
+            waitingTimeRulesFound = true;
+          }
+          continue;
+        }
+        
+        // Skip duplicate content after the first WAITING TIME RULES section ends
         // (these are duplicates: notes, total lines, inline WAITING TIME RULES)
-        if (firstWaitingTimeRulesEndIndex !== -1 && i >= firstWaitingTimeRulesEndIndex) {
+        if (waitingTimeRulesEndIndex !== -1 && i >= waitingTimeRulesEndIndex) {
           const lowerLine = trimmedLine.toLowerCase();
           // Skip duplicate notes, duplicate WAITING TIME RULES, etc.
           if (lowerLine.startsWith('estimated') || 
               lowerLine.startsWith('must arrive') ||
-              lowerLine.includes('waiting time rules')) {
+              (lowerLine.includes('waiting time rules') && waitingTimeRulesFound)) {
             continue; // Skip duplicate content
           }
-        }
-        
-        // Handle WAITING TIME RULES section - only keep the first occurrence with bullet points
-        if (isInWaitingTimeSection(i, lines)) {
-          if (!waitingTimeRulesFound) {
-            // Check if this is inline format (all rules in one line with dashes)
-            if (trimmedLine.toLowerCase().includes('waiting time rules:') && 
-                trimmedLine.includes('-') && 
-                trimmedLine.length > 100) {
-              // This is inline format (long line with multiple rules), skip it
-              continue;
-            }
-            processedLines.push(line);
-            // Mark that we've started the WAITING TIME RULES section
-            if (trimmedLine.toLowerCase().includes('waiting time rules')) {
-              waitingTimeRulesFound = true;
-            }
-          } else {
-            // Skip duplicate WAITING TIME RULES content (inline versions that appear later)
-            if (trimmedLine.toLowerCase().includes('waiting time rules:')) {
-              continue; // Skip duplicate inline version
-            }
-          }
-          continue;
         }
         
         // Check if this line is a price line
