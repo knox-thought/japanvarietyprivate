@@ -316,17 +316,28 @@ export const DataManager: React.FC = () => {
   const fetchRelatedDataForTable = async () => {
     const relationFields = currentTable.fields.filter(f => f.type === 'relation' && f.relationTable);
     
-    const promises = relationFields.map(async (field) => {
+    // Collect unique tables to fetch
+    const tablesToFetch = new Set<string>();
+    relationFields.forEach(field => {
+      if (field.relationTable) tablesToFetch.add(field.relationTable);
+    });
+    
+    // Also fetch customers when viewing car_bookings (to show customer name from booking)
+    if (activeTable === 'car_bookings') {
+      tablesToFetch.add('customers');
+    }
+    
+    const promises = Array.from(tablesToFetch).map(async (tableName) => {
       try {
-        const response = await fetch(`/api/data/${field.relationTable}`);
+        const response = await fetch(`/api/data/${tableName}`);
         if (response.ok) {
           const result = await response.json();
-          return { table: field.relationTable!, data: result.data || [] };
+          return { table: tableName, data: result.data || [] };
         }
       } catch (err) {
-        console.error(`Failed to fetch ${field.relationTable}:`, err);
+        console.error(`Failed to fetch ${tableName}:`, err);
       }
-      return { table: field.relationTable!, data: [] };
+      return { table: tableName, data: [] };
     });
 
     const results = await Promise.all(promises);
@@ -338,28 +349,51 @@ export const DataManager: React.FC = () => {
   };
 
   // Helper to get related item name
-  const getRelatedItemName = (field: FieldConfig, id: number | string) => {
+  const getRelatedItemName = (field: FieldConfig, id: number | string, showCustomerForBooking: boolean = false) => {
     if (field.type !== 'relation' || !field.relationTable) return id;
     const items = relatedData[field.relationTable] || [];
     const item = items.find((i: any) => i.id === Number(id));
-    return item ? item[field.relationLabelField || 'name'] : `ID: ${id}`;
+    if (!item) return `ID: ${id}`;
+    
+    // Special handling for booking_id - show customer LINE display name + booking code in small
+    if (field.name === 'booking_id' && field.relationTable === 'bookings' && showCustomerForBooking) {
+      const customerId = item.customer_id;
+      const customers = relatedData.customers || [];
+      const customer = customers.find((c: any) => c.id === Number(customerId));
+      const customerName = customer?.line_display_name || customer?.name || 'ไม่ระบุ';
+      const bookingCode = item.booking_code || `#${id}`;
+      return { customerName, bookingCode };
+    }
+    
+    return item[field.relationLabelField || 'name'] || `ID: ${id}`;
   };
 
   // Fetch related data for relation fields
   const fetchRelatedData = async () => {
     const relationFields = currentTable.fields.filter(f => f.type === 'relation' && f.relationTable);
     
-    const promises = relationFields.map(async (field) => {
+    // Collect unique tables to fetch
+    const tablesToFetch = new Set<string>();
+    relationFields.forEach(field => {
+      if (field.relationTable) tablesToFetch.add(field.relationTable);
+    });
+    
+    // Also fetch customers when editing car_bookings (to show customer name from booking)
+    if (activeTable === 'car_bookings') {
+      tablesToFetch.add('customers');
+    }
+    
+    const promises = Array.from(tablesToFetch).map(async (tableName) => {
       try {
-        const response = await fetch(`/api/data/${field.relationTable}`);
+        const response = await fetch(`/api/data/${tableName}`);
         if (response.ok) {
           const result = await response.json();
-          return { table: field.relationTable!, data: result.data || [] };
+          return { table: tableName, data: result.data || [] };
         }
       } catch (err) {
-        console.error(`Failed to fetch ${field.relationTable}:`, err);
+        console.error(`Failed to fetch ${tableName}:`, err);
       }
-      return { table: field.relationTable!, data: [] };
+      return { table: tableName, data: [] };
     });
 
     const results = await Promise.all(promises);
@@ -1156,7 +1190,7 @@ export const DataManager: React.FC = () => {
   };
 
   // Format cell value for display
-  const formatCellValue = (field: FieldConfig, value: any) => {
+  const formatCellValue = (field: FieldConfig, value: any, asJsx: boolean = false) => {
     if (value === null || value === undefined || value === '') return '-';
     
     if (field.type === 'select') {
@@ -1164,6 +1198,18 @@ export const DataManager: React.FC = () => {
     }
     
     if (field.type === 'relation') {
+      // Special handling for booking_id to show customer name + booking code
+      if (field.name === 'booking_id' && field.relationTable === 'bookings' && asJsx) {
+        const result = getRelatedItemName(field, value, true);
+        if (typeof result === 'object' && result.customerName) {
+          return (
+            <span className="flex flex-col">
+              <span className="font-medium text-gray-900">{result.customerName}</span>
+              <span className="text-xs text-gray-400">({result.bookingCode})</span>
+            </span>
+          );
+        }
+      }
       return getRelatedItemName(field, value);
     }
 
@@ -1280,20 +1326,28 @@ export const DataManager: React.FC = () => {
           {activeTable === 'car_bookings' && (
             <div className="mb-6">
               <CarBookingCalendar
-                bookings={data.map((item: any) => ({
-                  id: item.id,
-                  booking_id: item.booking_id,
-                  booking_code: relatedData.bookings?.find((b: any) => b.id === item.booking_id)?.booking_code,
-                  customer_name: relatedData.bookings?.find((b: any) => b.id === item.booking_id)?.customer_name,
-                  service_date: item.service_date,
-                  vehicle_type: item.vehicle_type,
-                  service_type: item.service_type,
-                  pickup_location: item.pickup_location,
-                  dropoff_location: item.dropoff_location,
-                  pickup_time: item.pickup_time,
-                  status: item.status,
-                  notes: item.notes,
-                }))}
+                bookings={data.map((item: any) => {
+                  const booking = relatedData.bookings?.find((b: any) => b.id === item.booking_id);
+                  const customer = booking 
+                    ? relatedData.customers?.find((c: any) => c.id === booking.customer_id) 
+                    : null;
+                  // Use LINE display name if available, otherwise use name from customers or booking
+                  const customerName = customer?.line_display_name || customer?.name || booking?.customer_name || 'ไม่ระบุ';
+                  return {
+                    id: item.id,
+                    booking_id: item.booking_id,
+                    booking_code: booking?.booking_code,
+                    customer_name: customerName,
+                    service_date: item.service_date,
+                    vehicle_type: item.vehicle_type,
+                    service_type: item.service_type,
+                    pickup_location: item.pickup_location,
+                    dropoff_location: item.dropoff_location,
+                    pickup_time: item.pickup_time,
+                    status: item.status,
+                    notes: item.notes,
+                  };
+                })}
                 onBookingClick={(booking) => {
                   const item = data.find((d: any) => d.id === booking.id);
                   if (item) openDetailView(item);
@@ -1345,12 +1399,14 @@ export const DataManager: React.FC = () => {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-2 py-3 text-center">
+                  {/* Checkbox column - hidden header, only show checkbox */}
+                  <th className="w-10 px-2 py-3 text-center">
                     <input
                       type="checkbox"
                       checked={data.length > 0 && selectedItems.length === data.length}
                       onChange={toggleSelectAll}
                       className="w-4 h-4 text-amber-500 border-gray-300 rounded focus:ring-amber-500 cursor-pointer"
+                      title="เลือกทั้งหมด"
                     />
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">ID</th>
@@ -1393,11 +1449,12 @@ export const DataManager: React.FC = () => {
                       <td 
                         key={field.name} 
                         className={clsx(
-                          "px-4 py-3 text-sm max-w-[200px] truncate",
+                          "px-4 py-3 text-sm max-w-[200px]",
+                          field.name === 'booking_id' ? "" : "truncate",
                           isUnpaidPayment ? "text-red-700 font-medium" : "text-gray-900"
                         )}
                       >
-                        {formatCellValue(field, item[field.name])}
+                        {formatCellValue(field, item[field.name], field.name === 'booking_id')}
                       </td>
                     ))}
                     <td className="px-4 py-3">
