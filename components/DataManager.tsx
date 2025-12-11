@@ -322,8 +322,8 @@ export const DataManager: React.FC = () => {
       if (field.relationTable) tablesToFetch.add(field.relationTable);
     });
     
-    // Also fetch customers when viewing car_bookings (to show customer name from booking)
-    if (activeTable === 'car_bookings') {
+    // Also fetch customers for tables that reference bookings (to show customer name)
+    if (activeTable === 'car_bookings' || activeTable === 'payments' || activeTable === 'notifications') {
       tablesToFetch.add('customers');
     }
     
@@ -365,6 +365,12 @@ export const DataManager: React.FC = () => {
       return { customerName, bookingCode };
     }
     
+    // For customers relation - prioritize LINE display name
+    if (field.relationTable === 'customers') {
+      const lineDisplayName = item.line_display_name && String(item.line_display_name).trim();
+      return lineDisplayName || item.name || 'ไม่ระบุ';
+    }
+    
     return item[field.relationLabelField || 'name'] || `ID: ${id}`;
   };
 
@@ -378,8 +384,8 @@ export const DataManager: React.FC = () => {
       if (field.relationTable) tablesToFetch.add(field.relationTable);
     });
     
-    // Also fetch customers when editing car_bookings (to show customer name from booking)
-    if (activeTable === 'car_bookings') {
+    // Also fetch customers for tables that reference bookings (to show customer name)
+    if (activeTable === 'car_bookings' || activeTable === 'payments' || activeTable === 'notifications') {
       tablesToFetch.add('customers');
     }
     
@@ -1149,7 +1155,7 @@ export const DataManager: React.FC = () => {
               }
               return (
                 <option key={item.id} value={item.id}>
-                  {displayLabel} (ID: {item.id})
+                  {displayLabel}
                 </option>
               );
             })}
@@ -1409,7 +1415,6 @@ export const DataManager: React.FC = () => {
                       title="เลือกทั้งหมด"
                     />
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">ID</th>
                   {currentTable.fields.slice(0, 5).map(field => (
                     <th key={field.name} className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">
                       {field.label}
@@ -1441,10 +1446,6 @@ export const DataManager: React.FC = () => {
                         className="w-4 h-4 text-amber-500 border-gray-300 rounded focus:ring-amber-500 cursor-pointer"
                       />
                     </td>
-                    <td className={clsx(
-                      "px-4 py-3 text-sm",
-                      isUnpaidPayment ? "text-red-600 font-semibold" : "text-gray-500"
-                    )}>#{item.id}</td>
                     {currentTable.fields.slice(0, 5).map(field => (
                       <td 
                         key={field.name} 
