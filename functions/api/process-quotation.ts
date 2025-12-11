@@ -49,7 +49,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
       );
     }
 
-    const { ourQuotation, operatorResponse, markupMultiplier } = await request.json();
+    const { ourQuotation, operatorResponse, marginPercent = 37 } = await request.json();
 
     const responseSchema: Schema = {
       type: Type.OBJECT,
@@ -196,10 +196,11 @@ Return valid JSON matching the schema.
       return `${year}-${month}-${day}`;
     };
 
-    // Calculate selling prices with markup from shared pricing utility
-    // MARKUP = 1.37 × 1.07 = 1.4659 (37% margin + 7% VAT)
-    const pricingInfo = getPricingInfo();
-    console.log(`[Pricing] Using markup: ${pricingInfo.formula} = ${MARKUP}`);
+    // Calculate selling prices with dynamic margin from request
+    // Formula: (1 + marginPercent/100) × 1.07
+    const dynamicMarkup = (1 + marginPercent / 100) * 1.07;
+    const pricingInfo = getPricingInfo(marginPercent);
+    console.log(`[Pricing] Using margin: ${marginPercent}%, markup: ${pricingInfo.formula} = ${dynamicMarkup.toFixed(4)}`);
     
     const processedDays = parsed.days.map((day: any) => {
       const baseCost = day.baseCostPrice || day.costPrice || 0;
@@ -209,11 +210,11 @@ Return valid JSON matching the schema.
       const addOnsTotal = addOns.reduce((sum: number, addon: any) => sum + (addon.amount || 0), 0);
       const totalCost = baseCost + addOnsTotal;
       
-      // Calculate selling prices with smart rounding
-      const baseSellingPrice = smartRoundUp(baseCost * MARKUP);
+      // Calculate selling prices with smart rounding and dynamic margin
+      const baseSellingPrice = smartRoundUp(baseCost * dynamicMarkup);
       const addOnsWithSelling = addOns.map((addon: any) => ({
         ...addon,
-        sellingPrice: smartRoundUp((addon.amount || 0) * MARKUP)
+        sellingPrice: smartRoundUp((addon.amount || 0) * dynamicMarkup)
       }));
       const addOnsSellingTotal = addOnsWithSelling.reduce((sum: number, addon: any) => sum + addon.sellingPrice, 0);
       const totalSellingPrice = baseSellingPrice + addOnsSellingTotal;

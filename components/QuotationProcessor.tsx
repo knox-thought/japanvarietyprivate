@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Copy, Check, Calculator, FileText } from './Icons';
 import clsx from 'clsx';
-import { MARKUP_MARGIN, MARKUP_VAT, MARKUP, getPricingInfo } from '../functions/lib/pricing';
+import { 
+  DEFAULT_MARGIN_PERCENT, 
+  DEFAULT_EXCHANGE_RATE, 
+  MARKUP_VAT, 
+  getPricingInfo,
+  convertJPYtoTHB,
+  formatPriceWithTHB
+} from '../functions/lib/pricing';
 
 interface AddOn {
   amount: number;
@@ -71,10 +78,13 @@ export const QuotationProcessor: React.FC = () => {
   const [carCompanies, setCarCompanies] = useState<{ id: number; name: string }[]>([]);
   const [isLoadingCarCompanies, setIsLoadingCarCompanies] = useState(false);
   const [selectedCarCompanyId, setSelectedCarCompanyId] = useState<number | ''>('');
+  
+  // Dynamic pricing inputs
+  const [marginPercent, setMarginPercent] = useState<number>(DEFAULT_MARGIN_PERCENT);
+  const [exchangeRate, setExchangeRate] = useState<number>(DEFAULT_EXCHANGE_RATE);
 
-  // Markup is calculated in backend using shared pricing utility
-  // Formula: ×1.37×1.07 = ×1.4659 (37% margin + 7% VAT)
-  const pricingInfo = getPricingInfo();
+  // Get pricing info based on current margin
+  const pricingInfo = getPricingInfo(marginPercent);
 
   // Fetch saved quotations
   const fetchQuotations = async () => {
@@ -184,9 +194,17 @@ export const QuotationProcessor: React.FC = () => {
   };
 
   const processQuotation = async () => {
-    // Input 1 is now optional, only Input 2 is required
+    // Validate required fields
     if (!input2.trim()) {
       setError('กรุณากรอก Input 2: ราคาที่ Operator ตอบกลับมา');
+      return;
+    }
+    if (marginPercent < 0 || marginPercent > 100) {
+      setError('กรุณากรอก Margin % ระหว่าง 0-100');
+      return;
+    }
+    if (exchangeRate <= 0) {
+      setError('กรุณากรอกอัตราแลกเปลี่ยน');
       return;
     }
 
@@ -200,7 +218,8 @@ export const QuotationProcessor: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           ourQuotation: input1.trim() || '',
-          operatorResponse: input2
+          operatorResponse: input2,
+          marginPercent: marginPercent // Send margin to backend
         }),
       });
 
@@ -319,6 +338,7 @@ export const QuotationProcessor: React.FC = () => {
 
       output += `────────────────\n`;
       output += `รวมราคาขาย: ${formatPrice(result.totalSelling, '¥')}\n`;
+      output += `${convertJPYtoTHB(result.totalSelling, exchangeRate).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท\n`;
     }
 
     if (result.notes.length > 0) {
@@ -475,6 +495,60 @@ export const QuotationProcessor: React.FC = () => {
             placeholder="หรือกรอกชื่อเอง"
             className="w-full p-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:border-amber-500 mt-2"
           />
+        </div>
+      </div>
+
+      {/* Pricing Settings */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Margin % */}
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+          <label className="block text-sm font-bold text-gray-700 mb-2">
+            Margin % <span className="text-red-500">*</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="1"
+              value={marginPercent}
+              onChange={(e) => {
+                const val = Math.min(100, Math.max(0, Number(e.target.value) || 0));
+                setMarginPercent(val);
+              }}
+              className="flex-1 p-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:border-amber-500"
+              required
+            />
+            <span className="text-gray-600 font-medium">%</span>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            VAT 7% (fix) | สูตร: {pricingInfo.formula}
+          </p>
+        </div>
+
+        {/* Exchange Rate */}
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+          <label className="block text-sm font-bold text-gray-700 mb-2">
+            อัตราแลกเปลี่ยน (JPY → THB) <span className="text-red-500">*</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={exchangeRate}
+              onChange={(e) => {
+                const val = Math.max(0, Number(e.target.value) || 0);
+                setExchangeRate(val);
+              }}
+              className="flex-1 p-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:border-amber-500"
+              required
+            />
+            <span className="text-gray-600 font-medium">THB/JPY</span>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            ตัวอย่าง: ¥100 × {exchangeRate} = {(100 * exchangeRate).toFixed(2)} บาท
+          </p>
         </div>
       </div>
 
@@ -687,15 +761,25 @@ Date:2026-02-21
               <div className="border-t border-gray-200 pt-3 space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="font-bold text-gray-900">รวมราคาขาย:</span>
-                  <span className="text-xl font-bold text-amber-600">
-                    {formatPrice(result.totalSelling, '¥')}
-                  </span>
+                  <div className="text-right">
+                    <span className="text-xl font-bold text-amber-600">
+                      {formatPrice(result.totalSelling, '¥')}
+                    </span>
+                    <div className="text-sm text-blue-600 font-medium">
+                      {convertJPYtoTHB(result.totalSelling, exchangeRate).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
+                    </div>
+                  </div>
                 </div>
                 <div className="flex justify-between items-center text-sm text-gray-500">
                   <span>กำไร:</span>
-                  <span className="font-medium text-green-600">
-                    {formatPrice(result.totalSelling - result.totalCost, '¥')} ({Math.round((result.totalSelling - result.totalCost) / result.totalCost * 100)}%)
-                  </span>
+                  <div className="text-right">
+                    <span className="font-medium text-green-600">
+                      {formatPrice(result.totalSelling - result.totalCost, '¥')} ({Math.round((result.totalSelling - result.totalCost) / result.totalCost * 100)}%)
+                    </span>
+                    <div className="text-xs text-green-500">
+                      {convertJPYtoTHB(result.totalSelling - result.totalCost, exchangeRate).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
+                    </div>
+                  </div>
                 </div>
               </div>
 

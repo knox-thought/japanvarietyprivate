@@ -1,15 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import { ImageUpload } from './ImageUpload';
 import { CarBookingCalendar } from './CarBookingCalendar';
 import { 
-  MARKUP_MARGIN, 
+  DEFAULT_MARGIN_PERCENT,
+  DEFAULT_EXCHANGE_RATE,
   MARKUP_VAT, 
   roundUpTo1000, 
   roundUpTo100,
-  calculateSellingPrice as calcSellingPrice,
-  calculateAddOnSellingPrice,
-  getPricingInfo 
+  getPricingInfo,
+  convertJPYtoTHB
 } from '../functions/lib/pricing';
 
 type TableName = 'customers' | 'car_companies' | 'bookings' | 'car_bookings' | 'payments' | 'notifications' | 'quotations' | 'users';
@@ -284,7 +284,6 @@ export const DataManager: React.FC = () => {
   const [data, setData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const costQuotationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [editingItem, setEditingItem] = useState<any | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -296,6 +295,11 @@ export const DataManager: React.FC = () => {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+  
+  // Pricing inputs for bookings
+  const [marginPercent, setMarginPercent] = useState<number>(DEFAULT_MARGIN_PERCENT);
+  const [exchangeRate, setExchangeRate] = useState<number>(DEFAULT_EXCHANGE_RATE);
+  const [isCalculating, setIsCalculating] = useState(false);
 
   const currentTable = TABLES.find(t => t.name === activeTable)!;
 
@@ -461,46 +465,49 @@ export const DataManager: React.FC = () => {
       return updated;
     });
 
-    // Process cost_quotation when it's filled in bookings form
-    // Wait a bit to allow user to finish typing (debounce)
-    if (
-      activeTable === 'bookings' &&
-      field === 'cost_quotation' &&
-      value &&
-      value.trim()
-    ) {
-      // Clear previous timeout if user continues typing
-      if (costQuotationTimeoutRef.current) {
-        clearTimeout(costQuotationTimeoutRef.current);
-      }
-      
-      // Use setTimeout to debounce - wait 1.5 seconds after user stops typing
-      costQuotationTimeoutRef.current = setTimeout(async () => {
-        // Get updated formData (with the new value already set)
-        const updatedFormData = { ...formData, [field]: value };
-        await processQuotationCost(value, updatedFormData.route_quotation || '', updatedFormData);
-      }, 1500);
-    } else if (activeTable === 'bookings' && field === 'cost_quotation' && !value) {
-      // Clear timeout if field is cleared
-      if (costQuotationTimeoutRef.current) {
-        clearTimeout(costQuotationTimeoutRef.current);
-        costQuotationTimeoutRef.current = null;
-      }
+    // Note: Auto-calculate removed. Use manual "คำนวณราคาขาย" button instead
+  };
+  
+  // Manual calculate function for booking quotation
+  const handleCalculateQuotation = async () => {
+    if (!formData.cost_quotation?.trim()) {
+      setError('กรุณากรอก Quotation ต้นทุนก่อน');
+      return;
     }
+    if (marginPercent < 0 || marginPercent > 100) {
+      setError('กรุณากรอก Margin % ระหว่าง 0-100');
+      return;
+    }
+    if (exchangeRate <= 0) {
+      setError('กรุณากรอกอัตราแลกเปลี่ยน');
+      return;
+    }
+    
+    setIsCalculating(true);
+    await processQuotationCost(formData.cost_quotation, formData.route_quotation || '', formData);
+    setIsCalculating(false);
   };
 
   // Generate output text similar to QuotationProcessor Output 1 (selling price breakdown)
   // Format: Keep original structure but replace prices with calculated prices
-  // Uses shared pricing utility: ×1.37×1.07 = ×1.4659
+  // Uses dynamic margin: ×(1+margin%)×1.07
   // Returns: { output: string, totalPrice: number }
   const generateSellingPriceOutput = (data: any, customerName: string = '', operatorResponse?: string): { output: string, totalPrice: number } => {
     // Get pricing info for logging
-    const pricingInfo = getPricingInfo();
-    console.log(`[Pricing] Using formula: ${pricingInfo.formula} (${pricingInfo.marginPercent}% margin + ${pricingInfo.vatPercent}% VAT)`);
+    const pricingInfo = getPricingInfo(marginPercent);
+    const dynamicMarkup = (1 + marginPercent / 100) * MARKUP_VAT;
+    console.log(`[Pricing] Using formula: ${pricingInfo.formula} (${marginPercent}% margin + 7% VAT) = ${dynamicMarkup.toFixed(4)}`);
 
-    // Use shared pricing functions
+    // Calculate selling price with dynamic margin
     const calculateSellingPrice = (costPrice: number): number => {
-      return calcSellingPrice(costPrice, false); // Use roundUpTo1000 for base prices
+      const withMarkup = costPrice * dynamicMarkup;
+      return roundUpTo1000(withMarkup);
+    };
+    
+    // Calculate add-on selling price with dynamic margin
+    const calculateAddOnSellingPrice = (costPrice: number): number => {
+      const withMarkup = costPrice * dynamicMarkup;
+      return roundUpTo100(withMarkup);
     };
 
     // Parse price expression like "75000+2000*2(3 Baby seat)" and calculate selling price
@@ -715,8 +722,10 @@ export const DataManager: React.FC = () => {
       if (calculatedPrices.length > 0) {
         calculatedTotal = calculatedPrices.reduce((sum, price) => sum + price, 0);
         const totalExpression = calculatedPrices.join('+');
+        const thbTotal = convertJPYtoTHB(calculatedTotal, exchangeRate);
         // Always add at the end, regardless of WAITING TIME RULES position
-        processedLines.push(`${totalExpression} = ${calculatedTotal} in total`);
+        processedLines.push(`${totalExpression} = ¥${calculatedTotal.toLocaleString()} in total`);
+        processedLines.push(`${thbTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท`);
       }
       
       output = processedLines.join('\n');
@@ -773,7 +782,7 @@ export const DataManager: React.FC = () => {
         body: JSON.stringify({ 
           ourQuotation: ourQuotation || '', // Optional
           operatorResponse: operatorResponse,
-          markupMultiplier: MARKUP_MARGIN * MARKUP_VAT // 37% margin + 7% VAT combined (1.37 × 1.07)
+          marginPercent: marginPercent // Dynamic margin from input
         }),
       });
 
@@ -829,7 +838,8 @@ export const DataManager: React.FC = () => {
         total_price: calculatedTotalPrice // Use calculated total from generateSellingPriceOutput
       }));
 
-      showSuccess(`✅ คำนวณราคาขายสำเร็จและเติมลง Quotation เส้นทางแล้ว (รวม: ¥${calculatedTotalPrice.toLocaleString()})`);
+      const thbAmount = convertJPYtoTHB(calculatedTotalPrice, exchangeRate);
+      showSuccess(`✅ คำนวณราคาขายสำเร็จ (รวม: ¥${calculatedTotalPrice.toLocaleString()} = ${thbAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท)`);
     } catch (err) {
       console.error('Failed to process quotation cost:', err);
       setError(`ไม่สามารถคำนวณราคาขายได้: ${err instanceof Error ? err.message : 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'}`);
@@ -1100,6 +1110,81 @@ export const DataManager: React.FC = () => {
         if (field.name === 'cost_quotation') {
           rows = 8;
           fontFamily = 'monospace';
+          // Add pricing inputs and calculate button for cost_quotation
+          return (
+            <div className="space-y-3">
+              <textarea
+                value={value}
+                onChange={(e) => handleInputChange(field.name, e.target.value)}
+                placeholder={field.placeholder}
+                rows={rows}
+                className={baseClasses}
+                style={{ fontFamily }}
+              />
+              {/* Pricing Settings */}
+              <div className="grid grid-cols-2 gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    Margin % <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={marginPercent}
+                      onChange={(e) => setMarginPercent(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-sm outline-none focus:border-amber-500"
+                    />
+                    <span className="text-xs text-gray-500">%</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    อัตราแลกเปลี่ยน <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={exchangeRate}
+                      onChange={(e) => setExchangeRate(Math.max(0, Number(e.target.value) || 0))}
+                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-sm outline-none focus:border-amber-500"
+                    />
+                    <span className="text-xs text-gray-500">THB/¥</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCalculateQuotation}
+                disabled={isCalculating || !value?.trim()}
+                className={clsx(
+                  "w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium text-white transition-all",
+                  isCalculating || !value?.trim()
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-amber-500 hover:bg-amber-600"
+                )}
+              >
+                {isCalculating ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    กำลังคำนวณ...
+                  </>
+                ) : (
+                  <>🧮 คำนวณราคาขาย (×{(1 + marginPercent/100).toFixed(2)}×1.07)</>
+                )}
+              </button>
+              <p className="text-xs text-gray-500 text-center">
+                VAT 7% (fix) | ตัวอย่าง: ¥100,000 → ¥{Math.ceil(100000 * (1 + marginPercent/100) * 1.07 / 1000) * 1000} = {(Math.ceil(100000 * (1 + marginPercent/100) * 1.07 / 1000) * 1000 * exchangeRate).toLocaleString('th-TH')} บาท
+              </p>
+            </div>
+          );
         } else if (field.name === 'route_quotation') {
           rows = 15; // Larger textarea for route quotation
           fontFamily = 'monospace';
