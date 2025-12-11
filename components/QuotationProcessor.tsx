@@ -318,7 +318,11 @@ export const QuotationProcessor: React.FC = () => {
       
       // แสดงสูตรคำนวณรวม
       const baseCostSum = result.days.reduce((sum, d) => sum + d.baseCostPrice, 0);
-      const addOnsCostSum = result.days.reduce((sum, d) => sum + d.addOns.reduce((s, a) => s + a.amount, 0), 0);
+      const addOnsCostSum = result.days.reduce((sum, d) => sum + d.addOns.reduce((s, a) => {
+        const unitPrice = a.unitPrice || a.amount || 0;
+        const quantity = a.quantity || 1;
+        return s + (unitPrice * quantity);
+      }, 0), 0);
       
       if (addOnsCostSum > 0) {
         output += `${baseCostSum.toLocaleString()}+${addOnsCostSum.toLocaleString()} = ${result.totalCost.toLocaleString()} in total\n`;
@@ -681,9 +685,15 @@ Date:2026-02-21
                     {formatPrice(day.baseCostPrice, day.currency)}
                     {day.addOns && day.addOns.length > 0 && (
                       <span className="text-sm font-normal text-gray-600 ml-1">
-                        {day.addOns.map((addon, i) => (
-                          <span key={i}>+{addon.amount.toLocaleString()}({addon.description})</span>
-                        ))}
+                        {day.addOns.map((addon, i) => {
+                          const unitPrice = addon.unitPrice || addon.amount || 0;
+                          const quantity = addon.quantity || 1;
+                          return (
+                            <span key={i}>
+                              +{unitPrice.toLocaleString()}{quantity > 1 ? `*${quantity}` : ''}({addon.description})
+                            </span>
+                          );
+                        })}
                       </span>
                     )}
                   </div>
@@ -694,7 +704,11 @@ Date:2026-02-21
                 {/* แสดงสูตรคำนวณ */}
                 {(() => {
                   const baseCostSum = result.days.reduce((sum, d) => sum + d.baseCostPrice, 0);
-                  const addOnsCostSum = result.days.reduce((sum, d) => sum + (d.addOns?.reduce((s, a) => s + a.amount, 0) || 0), 0);
+                  const addOnsCostSum = result.days.reduce((sum, d) => sum + (d.addOns?.reduce((s, a) => {
+                    const unitPrice = a.unitPrice || a.amount || 0;
+                    const quantity = a.quantity || 1;
+                    return s + (unitPrice * quantity);
+                  }, 0) || 0), 0);
                   
                   if (addOnsCostSum > 0) {
                     return (
