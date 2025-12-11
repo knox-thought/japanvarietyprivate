@@ -2,6 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import clsx from 'clsx';
 import { ImageUpload } from './ImageUpload';
 import { CarBookingCalendar } from './CarBookingCalendar';
+import { 
+  MARKUP_MARGIN, 
+  MARKUP_VAT, 
+  roundUpTo1000, 
+  roundUpTo100,
+  calculateSellingPrice as calcSellingPrice,
+  calculateAddOnSellingPrice,
+  getPricingInfo 
+} from '../functions/lib/pricing';
 
 type TableName = 'customers' | 'car_companies' | 'bookings' | 'car_bookings' | 'payments' | 'notifications' | 'quotations' | 'users';
 
@@ -481,17 +490,17 @@ export const DataManager: React.FC = () => {
   };
 
   // Generate output text similar to QuotationProcessor Output 1 (selling price breakdown)
-  // Format: Keep original structure but replace prices with calculated prices (×1.30×1.07)
+  // Format: Keep original structure but replace prices with calculated prices
+  // Uses shared pricing utility: ×1.37×1.07 = ×1.4659
   // Returns: { output: string, totalPrice: number }
   const generateSellingPriceOutput = (data: any, customerName: string = '', operatorResponse?: string): { output: string, totalPrice: number } => {
-    const roundUpTo1000 = (price: number): number => {
-      return Math.ceil(price / 1000) * 1000;
-    };
+    // Get pricing info for logging
+    const pricingInfo = getPricingInfo();
+    console.log(`[Pricing] Using formula: ${pricingInfo.formula} (${pricingInfo.marginPercent}% margin + ${pricingInfo.vatPercent}% VAT)`);
 
-    // Calculate price with markup: costPrice × 1.30 × 1.07 (30% + 7% VAT combined)
+    // Use shared pricing functions
     const calculateSellingPrice = (costPrice: number): number => {
-      const withMarkup = costPrice * 1.30 * 1.07;
-      return roundUpTo1000(withMarkup);
+      return calcSellingPrice(costPrice, false); // Use roundUpTo1000 for base prices
     };
 
     // Parse price expression like "75000+2000*2(3 Baby seat)" and calculate selling price
@@ -505,19 +514,6 @@ export const DataManager: React.FC = () => {
       
       const basePrice = parseInt(basePriceMatch[1]);
       const calculatedBase = calculateSellingPrice(basePrice);
-      
-      // Extract add-ons like "+2000*2(3 Baby seat)"
-      // IMPORTANT: Calculate each add-on unit price first, then multiply
-      // Add-ons should be rounded up to nearest 100 (not 1000 like base price)
-      // Example: 2000*2 → (2000 * 1.30 * 1.07 = 2782 → round up to 100 = 2800) * 2, show as 2800*2
-      const roundUpTo100 = (price: number): number => {
-        return Math.ceil(price / 100) * 100;
-      };
-      
-      const calculateAddOnPrice = (costPrice: number): number => {
-        const withMarkup = costPrice * 1.30 * 1.07;
-        return roundUpTo100(withMarkup);
-      };
       
       // Parse add-ons: +2000*2(3 Baby seat) or +2000(3 Baby seat)
       // IMPORTANT: Match pattern must be precise - only match +number*number(note) or +number(note)
@@ -544,11 +540,10 @@ export const DataManager: React.FC = () => {
         }
         
         // Calculate selling price for ONE unit of add-on (rounded to 100)
-        // Example: 2000 → 2000 * 1.30 * 1.07 = 2782 → round up to 100 = 2800
-        const calculatedAddOnUnit = calculateAddOnPrice(addOnUnitPrice);
+        // Uses shared calculateAddOnSellingPrice function
+        const calculatedAddOnUnit = calculateAddOnSellingPrice(addOnUnitPrice);
         
         // Format: +calculatedUnit*multiplier(note) or +calculatedUnit(note) if multiplier is 1
-        // Example: +2800*2(3 Baby seat) or +2800(3 Baby seat)
         if (multiplier > 1) {
           addOns.push(`+${calculatedAddOnUnit}*${multiplier}(${note})`);
         } else {
@@ -778,7 +773,7 @@ export const DataManager: React.FC = () => {
         body: JSON.stringify({ 
           ourQuotation: ourQuotation || '', // Optional
           operatorResponse: operatorResponse,
-          markupMultiplier: 1.391 // 30% margin + 7% VAT combined (1.30 × 1.07)
+          markupMultiplier: MARKUP_MARGIN * MARKUP_VAT // 37% margin + 7% VAT combined (1.37 × 1.07)
         }),
       });
 

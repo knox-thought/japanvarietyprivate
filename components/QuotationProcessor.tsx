@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Copy, Check, Calculator, FileText } from './Icons';
 import clsx from 'clsx';
+import { MARKUP_MARGIN, MARKUP_VAT, MARKUP, getPricingInfo } from '../functions/lib/pricing';
 
 interface AddOn {
   amount: number;
@@ -71,7 +72,9 @@ export const QuotationProcessor: React.FC = () => {
   const [isLoadingCarCompanies, setIsLoadingCarCompanies] = useState(false);
   const [selectedCarCompanyId, setSelectedCarCompanyId] = useState<number | ''>('');
 
-  // Markup is calculated in backend: 1.391 (30% margin + 7% VAT)
+  // Markup is calculated in backend using shared pricing utility
+  // Formula: ×1.37×1.07 = ×1.4659 (37% margin + 7% VAT)
+  const pricingInfo = getPricingInfo();
 
   // Fetch saved quotations
   const fetchQuotations = async () => {
@@ -295,7 +298,7 @@ export const QuotationProcessor: React.FC = () => {
         output += `รวมต้นทุน: ${formatPrice(result.totalCost, '¥')}\n`;
       }
     } else {
-      // Output 2: ราคาขาย (+30%+7% ปัดขึ้น) - แสดง add-ons แยก
+      // Output 2: ราคาขาย (+37%+7% ปัดขึ้น) - แสดง add-ons แยก
       result.days.forEach(day => {
         output += `${day.date}\n`;
         output += `${day.vehicle} • ${day.serviceType}\n`;
@@ -343,7 +346,7 @@ export const QuotationProcessor: React.FC = () => {
           Quotation Processor
         </h1>
         <p className="text-gray-500">
-          ประมวลผลราคาจาก Operator และคำนวณราคาขายอัตโนมัติ (+30%+7% = ×1.391 แล้วปัด)
+          ประมวลผลราคาจาก Operator และคำนวณราคาขายอัตโนมัติ (+{pricingInfo.marginPercent}%+{pricingInfo.vatPercent}% = {pricingInfo.formula} แล้วปัด)
         </p>
         
         {/* Toggle History */}
@@ -632,14 +635,14 @@ Date:2026-02-21
             </div>
           </div>
 
-          {/* Output 2: ราคาขาย (Selling Price) - +30%+7% ปัดขึ้น */}
+          {/* Output 2: ราคาขาย (Selling Price) - +37%+7% ปัดขึ้น */}
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
             <div className="bg-amber-50 px-4 py-3 border-b border-amber-200 flex items-center justify-between">
               <div>
                 <h2 className="font-bold text-amber-800">
-                  Output 2: ราคาขาย (+30%+7% ปัดขึ้น)
+                  Output 2: ราคาขาย (+{pricingInfo.marginPercent}%+{pricingInfo.vatPercent}% ปัดขึ้น)
                 </h2>
-                <p className="text-xs text-amber-600">ต้นทุน × 1.391 → ปัดขึ้น (หลักหมื่น=000, หลักพัน=00)</p>
+                <p className="text-xs text-amber-600">ต้นทุน {pricingInfo.formula} → ปัดขึ้น (หลักหมื่น=000, หลักพัน=00)</p>
               </div>
               <button
                 onClick={() => copyToClipboard('selling')}

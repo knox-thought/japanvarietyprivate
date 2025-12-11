@@ -1,5 +1,6 @@
 import { Type, Schema } from "@google/genai";
 import { generateContent, loadAIConfig } from "../lib/ai-service";
+import { MARKUP, smartRoundUp, getPricingInfo } from "../lib/pricing";
 
 const ALLOWED_ORIGINS = [
   'https://japanvarietyprivate.pages.dev',
@@ -195,17 +196,10 @@ Return valid JSON matching the schema.
       return `${year}-${month}-${day}`;
     };
 
-    // Calculate selling prices with markup
-    const MARKUP = 1.391; // 30% margin + 7% VAT combined
-    
-    // Smart rounding: >= 10000 round to nearest 1000, < 10000 round to nearest 100
-    const smartRoundUp = (price: number): number => {
-      if (price >= 10000) {
-        return Math.ceil(price / 1000) * 1000;
-      } else {
-        return Math.ceil(price / 100) * 100;
-      }
-    };
+    // Calculate selling prices with markup from shared pricing utility
+    // MARKUP = 1.37 × 1.07 = 1.4659 (37% margin + 7% VAT)
+    const pricingInfo = getPricingInfo();
+    console.log(`[Pricing] Using markup: ${pricingInfo.formula} = ${MARKUP}`);
     
     const processedDays = parsed.days.map((day: any) => {
       const baseCost = day.baseCostPrice || day.costPrice || 0;
