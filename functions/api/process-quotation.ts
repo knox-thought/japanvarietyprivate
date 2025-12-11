@@ -70,11 +70,12 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
                 items: {
                   type: Type.OBJECT,
                   properties: {
-                    amount: { type: Type.NUMBER, description: "Add-on amount in yen" },
+                    unitPrice: { type: Type.NUMBER, description: "Price per unit in yen (NOT total, just per-unit price)" },
+                    quantity: { type: Type.NUMBER, description: "Quantity/multiplier (default 1 if not specified)" },
                     description: { type: Type.STRING, description: "Add-on description (e.g., Baby seat, Accommodation driver)" }
                   }
                 },
-                description: "Array of add-on items with amount and description"
+                description: "Array of add-on items with unit price, quantity, and description"
               },
               currency: { type: Type.STRING, description: "Currency symbol, default ¥" }
             }
@@ -109,13 +110,14 @@ TASK:
    - Parse patterns like: "170000yen+15000(Accommodation driver)+2000(Baby seat)+5000yen(New Year fee)"
      → baseCostPrice: 170000 (BASE ONLY)
      → addOns: [
-         { amount: 15000, description: "Accommodation driver" },
-         { amount: 2000, description: "Baby seat" },
-         { amount: 5000, description: "New Year fee" }
+         { unitPrice: 15000, quantity: 1, description: "Accommodation driver" },
+         { unitPrice: 2000, quantity: 1, description: "Baby seat" },
+         { unitPrice: 5000, quantity: 1, description: "New Year fee" }
        ]
    - Parse patterns like: "79000+2000*2(Baby seat)"
      → baseCostPrice: 79000
-     → addOns: [{ amount: 4000, description: "2 Baby seats" }]
+     → addOns: [{ unitPrice: 2000, quantity: 2, description: "Baby seat" }]
+   - IMPORTANT: Keep unitPrice as PER-UNIT price, DO NOT multiply by quantity!
    - DO NOT sum add-ons into baseCostPrice! Keep them separate.
 
 4. Extract any important operational notes/conditions from the operator response into the notes array
@@ -206,16 +208,29 @@ Return valid JSON matching the schema.
       const baseCost = day.baseCostPrice || day.costPrice || 0;
       const addOns = day.addOns || [];
       
-      // Calculate total cost (base + all add-ons)
-      const addOnsTotal = addOns.reduce((sum: number, addon: any) => sum + (addon.amount || 0), 0);
+      // Calculate total cost (base + all add-ons with quantity)
+      const addOnsTotal = addOns.reduce((sum: number, addon: any) => {
+        const unitPrice = addon.unitPrice || addon.amount || 0;
+        const quantity = addon.quantity || 1;
+        return sum + (unitPrice * quantity);
+      }, 0);
       const totalCost = baseCost + addOnsTotal;
       
       // Calculate selling prices with smart rounding and dynamic margin
       const baseSellingPrice = smartRoundUp(baseCost * dynamicMarkup);
-      const addOnsWithSelling = addOns.map((addon: any) => ({
-        ...addon,
-        sellingPrice: smartRoundUp((addon.amount || 0) * dynamicMarkup)
-      }));
+      const addOnsWithSelling = addOns.map((addon: any) => {
+        const unitPrice = addon.unitPrice || addon.amount || 0;
+        const quantity = addon.quantity || 1;
+        // Calculate selling price PER UNIT first, then multiply by quantity
+        const unitSellingPrice = smartRoundUp(unitPrice * dynamicMarkup);
+        return {
+          ...addon,
+          unitPrice,
+          quantity,
+          unitSellingPrice,
+          sellingPrice: unitSellingPrice * quantity // Total selling = unit × quantity
+        };
+      });
       const addOnsSellingTotal = addOnsWithSelling.reduce((sum: number, addon: any) => sum + addon.sellingPrice, 0);
       const totalSellingPrice = baseSellingPrice + addOnsSellingTotal;
       

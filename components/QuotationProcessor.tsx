@@ -11,9 +11,12 @@ import {
 } from '../functions/lib/pricing';
 
 interface AddOn {
-  amount: number;
+  amount?: number;
+  unitPrice?: number;
+  quantity?: number;
   description: string;
-  sellingPrice: number;
+  sellingPrice?: number;
+  unitSellingPrice?: number;
 }
 
 interface ProcessedDay {
@@ -295,10 +298,16 @@ export const QuotationProcessor: React.FC = () => {
         // แสดงราคาพื้นฐาน
         let priceStr = formatPrice(day.baseCostPrice, day.currency);
         
-        // แสดง add-ons แยกถ้ามี
+        // แสดง add-ons แยกถ้ามี (unit price × quantity)
         if (day.addOns && day.addOns.length > 0) {
           day.addOns.forEach(addon => {
-            priceStr += `+${addon.amount.toLocaleString()}(${addon.description})`;
+            const unitPrice = addon.unitPrice || addon.amount || 0;
+            const quantity = addon.quantity || 1;
+            if (quantity > 1) {
+              priceStr += `+${unitPrice.toLocaleString()}*${quantity}(${addon.description})`;
+            } else {
+              priceStr += `+${unitPrice.toLocaleString()}(${addon.description})`;
+            }
           });
         }
         
@@ -326,10 +335,16 @@ export const QuotationProcessor: React.FC = () => {
         // แสดงราคาพื้นฐาน
         let priceStr = formatPrice(day.baseSellingPrice, day.currency);
         
-        // แสดง add-ons แยกถ้ามี
+        // แสดง add-ons แยกถ้ามี (unit selling price × quantity)
         if (day.addOns && day.addOns.length > 0) {
           day.addOns.forEach(addon => {
-            priceStr += `+${addon.sellingPrice.toLocaleString()}(${addon.description})`;
+            const unitSellingPrice = addon.unitSellingPrice || addon.sellingPrice || 0;
+            const quantity = addon.quantity || 1;
+            if (quantity > 1) {
+              priceStr += `+${unitSellingPrice.toLocaleString()}*${quantity}(${addon.description})`;
+            } else {
+              priceStr += `+${unitSellingPrice.toLocaleString()}(${addon.description})`;
+            }
           });
         }
         
@@ -743,9 +758,15 @@ Date:2026-02-21
                     {formatPrice(day.baseSellingPrice, day.currency)}
                     {day.addOns && day.addOns.length > 0 && (
                       <span className="text-sm font-normal text-gray-600 ml-1">
-                        {day.addOns.map((addon, i) => (
-                          <span key={i}>+{addon.sellingPrice.toLocaleString()}({addon.description})</span>
-                        ))}
+                        {day.addOns.map((addon, i) => {
+                          const unitSellingPrice = addon.unitSellingPrice || addon.sellingPrice || 0;
+                          const quantity = addon.quantity || 1;
+                          return (
+                            <span key={i}>
+                              +{unitSellingPrice.toLocaleString()}{quantity > 1 ? `*${quantity}` : ''}({addon.description})
+                            </span>
+                          );
+                        })}
                       </span>
                     )}
                   </div>
