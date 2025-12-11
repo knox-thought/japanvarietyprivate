@@ -338,7 +338,7 @@ export const QuotationProcessor: React.FC = () => {
 
       output += `────────────────\n`;
       output += `รวมราคาขาย: ${formatPrice(result.totalSelling, '¥')}\n`;
-      output += `${convertJPYtoTHB(result.totalSelling, exchangeRate).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท\n`;
+      output += `${Math.round(convertJPYtoTHB(result.totalSelling, exchangeRate)).toLocaleString()} บาท\n`;
     }
 
     if (result.notes.length > 0) {
@@ -547,7 +547,7 @@ export const QuotationProcessor: React.FC = () => {
             <span className="text-gray-600 font-medium">THB/JPY</span>
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            ตัวอย่าง: ¥100 × {exchangeRate} = {(100 * exchangeRate).toFixed(2)} บาท
+            ตัวอย่าง: ¥100 × {exchangeRate} = {Math.round(100 * exchangeRate)} บาท
           </p>
         </div>
       </div>
@@ -766,7 +766,7 @@ Date:2026-02-21
                       {formatPrice(result.totalSelling, '¥')}
                     </span>
                     <div className="text-sm text-blue-600 font-medium">
-                      {convertJPYtoTHB(result.totalSelling, exchangeRate).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
+                      {Math.round(convertJPYtoTHB(result.totalSelling, exchangeRate)).toLocaleString()} บาท
                     </div>
                   </div>
                 </div>
@@ -777,7 +777,7 @@ Date:2026-02-21
                       {formatPrice(result.totalSelling - result.totalCost, '¥')} ({Math.round((result.totalSelling - result.totalCost) / result.totalCost * 100)}%)
                     </span>
                     <div className="text-xs text-green-500">
-                      {convertJPYtoTHB(result.totalSelling - result.totalCost, exchangeRate).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
+                      {Math.round(convertJPYtoTHB(result.totalSelling - result.totalCost, exchangeRate)).toLocaleString()} บาท
                     </div>
                   </div>
                 </div>

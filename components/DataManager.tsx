@@ -724,8 +724,8 @@ export const DataManager: React.FC = () => {
         const totalExpression = calculatedPrices.join('+');
         const thbTotal = convertJPYtoTHB(calculatedTotal, exchangeRate);
         // Always add at the end, regardless of WAITING TIME RULES position
-        processedLines.push(`${totalExpression} = ¥${calculatedTotal.toLocaleString()} in total`);
-        processedLines.push(`${thbTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท`);
+        processedLines.push(`${totalExpression} = ¥${calculatedTotal.toLocaleString()}`);
+        processedLines.push(`${Math.round(thbTotal).toLocaleString()} บาท`);
       }
       
       output = processedLines.join('\n');
@@ -756,7 +756,9 @@ export const DataManager: React.FC = () => {
         const totalSelling = data.days.reduce((sum: number, day: any) => {
           return sum + calculateSellingPrice(day.costPrice || 0);
         }, 0);
-        output += `\n${totalSelling} in total\n`;
+        const thbTotal = convertJPYtoTHB(totalSelling, exchangeRate);
+        output += `\n¥${totalSelling.toLocaleString()}\n`;
+        output += `${Math.round(thbTotal).toLocaleString()} บาท\n`;
         
         if (data.notes && data.notes.length > 0) {
           output += `\n`;
@@ -839,7 +841,7 @@ export const DataManager: React.FC = () => {
       }));
 
       const thbAmount = convertJPYtoTHB(calculatedTotalPrice, exchangeRate);
-      showSuccess(`✅ คำนวณราคาขายสำเร็จ (รวม: ¥${calculatedTotalPrice.toLocaleString()} = ${thbAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท)`);
+      showSuccess(`✅ คำนวณราคาขายสำเร็จ (รวม: ¥${calculatedTotalPrice.toLocaleString()} = ${Math.round(thbAmount).toLocaleString()} บาท)`);
     } catch (err) {
       console.error('Failed to process quotation cost:', err);
       setError(`ไม่สามารถคำนวณราคาขายได้: ${err instanceof Error ? err.message : 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'}`);
@@ -1181,7 +1183,7 @@ export const DataManager: React.FC = () => {
                 )}
               </button>
               <p className="text-xs text-gray-500 text-center">
-                VAT 7% (fix) | ตัวอย่าง: ¥100,000 → ¥{Math.ceil(100000 * (1 + marginPercent/100) * 1.07 / 1000) * 1000} = {(Math.ceil(100000 * (1 + marginPercent/100) * 1.07 / 1000) * 1000 * exchangeRate).toLocaleString('th-TH')} บาท
+                VAT 7% (fix) | ตัวอย่าง: ¥100,000 → ¥{(Math.ceil(100000 * (1 + marginPercent/100) * 1.07 / 1000) * 1000).toLocaleString()} = {Math.round(Math.ceil(100000 * (1 + marginPercent/100) * 1.07 / 1000) * 1000 * exchangeRate).toLocaleString()} บาท
               </p>
             </div>
           );
