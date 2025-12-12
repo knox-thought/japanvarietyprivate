@@ -12,7 +12,6 @@ interface DashboardStat {
 interface RecentQuotation {
   id: number;
   customer_name: string;
-  operator_name?: string;
   created_at: string;
   status: string;
   total_cost: number;
@@ -177,7 +176,6 @@ export const AdminDashboard: React.FC = () => {
             return {
               id: b.id,
               customer_name: b.customer_name || '-',
-              operator_name: b.operator_name || undefined,
               created_at: b.created_at,
               status: b.status,
               total_cost: typeof cost === 'number' ? cost : 0,
@@ -608,10 +606,10 @@ export const AdminDashboard: React.FC = () => {
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">วันที่</th>
                   <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">ลูกค้า</th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Operator</th>
                   <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">ต้นทุน (¥)</th>
                   <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">ราคาขาย (¥)</th>
                   <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">ยอดชำระ (฿)</th>
+                  <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">ยอดก่อน VAT</th>
                   <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">จัดการ</th>
                 </tr>
               </thead>
@@ -624,9 +622,6 @@ export const AdminDashboard: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="font-medium text-gray-900">{q.customer_name}</span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {q.operator_name || '-'}
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-blue-600 font-medium">
                       {formatCurrencyJPY(q.total_cost)}
                     </td>
@@ -635,6 +630,18 @@ export const AdminDashboard: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-amber-600 font-medium">
                       ฿{q.total_payments.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-purple-600 font-medium">
+                      {(() => {
+                        const vat = Math.ceil(q.total_payments * 7 / 107);
+                        const beforeVat = q.total_payments - vat;
+                        return (
+                          <>
+                            ฿{beforeVat.toLocaleString()}
+                            <span className="text-xs text-gray-500 ml-1">({vat.toLocaleString()} VAT 7%)</span>
+                          </>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <button
