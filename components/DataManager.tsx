@@ -1815,7 +1815,8 @@ export const DataManager: React.FC = () => {
                     !['id', 'created_at', 'updated_at', 'deleted_at', 
                       'deposit_paid_at', 'full_paid_at', 'next_payment_due',
                       'customer_name', 'customer_phone', 'customer_email',
-                      'total_paid', 'remaining_amount', 'is_fully_paid'
+                      'total_paid', 'remaining_amount', 'is_fully_paid',
+                      'quoted_price', 'confirmed_price'
                     ].includes(key)
                   ).map(key => (
                     <div key={key}>
