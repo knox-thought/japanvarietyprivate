@@ -47,9 +47,9 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
       INSERT INTO car_bookings (
         booking_id, service_date, service_type, vehicle_type, car_company_id,
         pickup_time, pickup_location, dropoff_location,
-        quoted_price, confirmed_price, driver_name, driver_phone,
+        driver_name, driver_phone,
         status, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING id
     `).bind(
       body.booking_id,
@@ -60,8 +60,6 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
       body.pickup_time,
       body.pickup_location,
       body.dropoff_location,
-      body.quoted_price,
-      body.confirmed_price,
       body.driver_name,
       body.driver_phone,
       body.status || 'pending',

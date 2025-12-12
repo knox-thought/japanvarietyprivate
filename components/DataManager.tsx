@@ -154,8 +154,6 @@ const TABLES: TableConfig[] = [
       { name: 'pickup_time', label: 'เวลารับ', type: 'text', placeholder: '08:00' },
       { name: 'pickup_location', label: 'สถานที่รับ', type: 'text', placeholder: 'โรงแรม...' },
       { name: 'dropoff_location', label: 'สถานที่ส่ง', type: 'text', placeholder: 'โรงแรม...' },
-      { name: 'quoted_price', label: 'ราคาเสนอ', type: 'number', placeholder: '0' },
-      { name: 'confirmed_price', label: 'ราคายืนยัน', type: 'number', placeholder: '0' },
       { name: 'driver_name', label: 'ชื่อคนขับ', type: 'text', placeholder: 'ชื่อคนขับ' },
       { name: 'driver_phone', label: 'เบอร์คนขับ', type: 'tel', placeholder: '08x-xxx-xxxx' },
       { name: 'status', label: 'สถานะ', type: 'select', options: [

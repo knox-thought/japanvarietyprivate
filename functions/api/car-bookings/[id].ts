@@ -52,7 +52,7 @@ export const onRequestPut = async ({ params, request, env }: { params: { id: str
     const allowedFields = [
       'booking_id', 'service_date', 'service_type', 'vehicle_type', 'car_company_id',
       'pickup_time', 'pickup_location', 'dropoff_location',
-      'quoted_price', 'confirmed_price', 'driver_name', 'driver_phone',
+      'driver_name', 'driver_phone',
       'status', 'notes'
     ];
 
