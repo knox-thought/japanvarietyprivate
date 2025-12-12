@@ -117,7 +117,7 @@ const TABLES: TableConfig[] = [
         { value: 'JPY', label: 'JPY (เยน)' },
         { value: 'USD', label: 'USD (ดอลลาร์)' },
       ]},
-      { name: 'deposit_amount', label: 'มัดจำ', type: 'number', placeholder: '0' },
+      { name: 'deposit_amount', label: 'ชำระเต็ม/มัดจำ', type: 'number', placeholder: '0' },
       { name: 'next_payment_amount', label: 'ยอดชำระถัดไป', type: 'number', placeholder: '0' },
       { name: 'status', label: 'สถานะ', type: 'select', options: [
         { value: 'inquiry', label: '💬 สอบถาม' },
@@ -176,6 +176,7 @@ const TABLES: TableConfig[] = [
       { name: 'payment_type', label: 'ประเภท', type: 'select', required: true, options: [
         { value: 'deposit', label: '💰 มัดจำ' },
         { value: 'full', label: '💵 ชำระเต็ม' },
+        { value: 'remaining', label: '⏳ รอชำระส่วนที่เหลือ' },
         { value: 'partial', label: '📊 ชำระบางส่วน' },
         { value: 'refund', label: '↩️ คืนเงิน' },
       ]},
@@ -193,7 +194,7 @@ const TABLES: TableConfig[] = [
       ]},
       { name: 'slip_url', label: 'สลิปการโอน', type: 'image', uploadFolder: 'payment-slips' },
       { name: 'reference_no', label: 'เลขอ้างอิง', type: 'text', placeholder: 'REF-xxx' },
-      { name: 'paid_at', label: 'วันที่ชำระ', type: 'datetime' },
+      { name: 'paid_at', label: 'วันที่ชำระ/นัดชำระ', type: 'datetime' },
       { name: 'verified_at', label: 'วันที่ตรวจสอบ', type: 'datetime' },
       { name: 'verified_by', label: 'ตรวจสอบโดย', type: 'relation', relationTable: 'users', relationLabelField: 'name' },
       { name: 'notes', label: 'หมายเหตุ', type: 'textarea' },
@@ -913,8 +914,35 @@ export const DataManager: React.FC = () => {
         
         let paymentMessages: string[] = [];
         
-        // Create deposit payment if deposit_amount > 0
-        if (depositAmount > 0) {
+        // Logic: 
+        // - ถ้าใส่มัดจำ แต่ไม่ใส่ยอดถัดไป = ชำระเต็ม (สร้าง 1 payment type full)
+        // - ถ้าใส่มัดจำ และใส่ยอดถัดไป = มัดจำ + รอชำระส่วนที่เหลือ
+        // - ถ้าไม่ใส่มัดจำ แต่มี total_price = ชำระเต็ม
+        
+        if (depositAmount > 0 && nextPaymentAmount === 0) {
+          // Case: ใส่มัดจำอย่างเดียว = ถือว่าชำระเต็ม
+          try {
+            const fullPaymentResponse = await fetch('/api/data/payments', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                booking_id: savedId,
+                payment_type: 'full',
+                amount: depositAmount,
+                currency: formData.currency || 'JPY',
+              }),
+            });
+            if (fullPaymentResponse.ok) {
+              paymentMessages.push('ชำระเต็ม');
+            } else {
+              const errData = await fullPaymentResponse.json().catch(() => ({}));
+              console.error('Full payment failed:', errData);
+            }
+          } catch (err) {
+            console.error('Error creating full payment:', err);
+          }
+        } else if (depositAmount > 0 && nextPaymentAmount > 0) {
+          // Case: ใส่ทั้งมัดจำและยอดถัดไป = มัดจำ + รอชำระส่วนที่เหลือ
           try {
             const depositResponse = await fetch('/api/data/payments', {
               method: 'POST',
@@ -935,34 +963,30 @@ export const DataManager: React.FC = () => {
           } catch (depositErr) {
             console.error('Error creating deposit payment:', depositErr);
           }
-        }
-        
-        // Create next payment if next_payment_amount > 0
-        if (nextPaymentAmount > 0) {
+          
+          // Create remaining payment
           try {
-            const nextPaymentResponse = await fetch('/api/data/payments', {
+            const remainingResponse = await fetch('/api/data/payments', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 booking_id: savedId,
-                payment_type: 'partial',
+                payment_type: 'remaining',
                 amount: nextPaymentAmount,
                 currency: formData.currency || 'JPY',
               }),
             });
-            if (nextPaymentResponse.ok) {
-              paymentMessages.push('ยอดชำระถัดไป');
+            if (remainingResponse.ok) {
+              paymentMessages.push('รอชำระส่วนที่เหลือ');
             } else {
-              const errData = await nextPaymentResponse.json().catch(() => ({}));
-              console.error('Next payment failed:', errData);
+              const errData = await remainingResponse.json().catch(() => ({}));
+              console.error('Remaining payment failed:', errData);
             }
-          } catch (nextPaymentErr) {
-            console.error('Error creating next payment:', nextPaymentErr);
+          } catch (remainingErr) {
+            console.error('Error creating remaining payment:', remainingErr);
           }
-        }
-        
-        // If no deposit specified but total_price is set, create a full payment record
-        if (depositAmount === 0 && nextPaymentAmount === 0 && totalPrice > 0) {
+        } else if (depositAmount === 0 && totalPrice > 0) {
+          // Case: ไม่ใส่มัดจำ แต่มี total_price = ชำระเต็ม
           try {
             const fullPaymentResponse = await fetch('/api/data/payments', {
               method: 'POST',
@@ -975,7 +999,7 @@ export const DataManager: React.FC = () => {
               }),
             });
             if (fullPaymentResponse.ok) {
-              paymentMessages.push('ยอดเต็ม');
+              paymentMessages.push('ชำระเต็ม');
             } else {
               const errData = await fullPaymentResponse.json().catch(() => ({}));
               console.error('Full payment failed:', errData);
@@ -1505,8 +1529,11 @@ export const DataManager: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {data.map((item) => {
-                  // Check if this is a payment and if it's unpaid (paid_at is null)
-                  const isUnpaidPayment = activeTable === 'payments' && !item.paid_at;
+                  // Payment row styling logic
+                  const isPayment = activeTable === 'payments';
+                  const isPendingRemaining = isPayment && item.payment_type === 'remaining' && !item.paid_at;
+                  const isFullyPaid = isPayment && item.payment_type === 'full' && item.paid_at;
+                  const isOverdue = isPayment && !item.paid_at && item.payment_type !== 'remaining';
                   const isSelected = selectedItems.includes(item.id);
                   
                   return (
@@ -1514,7 +1541,9 @@ export const DataManager: React.FC = () => {
                     key={item.id} 
                     className={clsx(
                       "hover:bg-gray-50",
-                      isUnpaidPayment && "bg-red-50 hover:bg-red-100",
+                      isPendingRemaining && "bg-blue-50 hover:bg-blue-100",
+                      isOverdue && "bg-red-50 hover:bg-red-100",
+                      isFullyPaid && "bg-green-50 hover:bg-green-100",
                       isSelected && "bg-amber-50"
                     )}
                   >
@@ -1532,7 +1561,9 @@ export const DataManager: React.FC = () => {
                         className={clsx(
                           "px-4 py-3 text-sm max-w-[200px]",
                           field.name === 'booking_id' ? "" : "truncate",
-                          isUnpaidPayment ? "text-red-700 font-medium" : "text-gray-900"
+                          isPendingRemaining ? "text-blue-700 font-medium" : 
+                          isOverdue ? "text-red-700 font-medium" : 
+                          isFullyPaid ? "text-green-700 font-medium" : "text-gray-900"
                         )}
                       >
                         {formatCellValue(field, item[field.name], field.name === 'booking_id')}
