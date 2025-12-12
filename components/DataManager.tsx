@@ -1733,7 +1733,12 @@ export const DataManager: React.FC = () => {
                     <span>{currentTable.icon}</span>
                     รายละเอียด{currentTable.label}
                   </h3>
-                  <p className="text-sm text-gray-500 mt-1">ID: #{detailItem.id}</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {/* Show customer name for car_bookings, otherwise show ID */}
+                    {activeTable === 'car_bookings' && detailItem.customer_name 
+                      ? detailItem.customer_name 
+                      : `ID: #${detailItem.id}`}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button

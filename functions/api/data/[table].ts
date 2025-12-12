@@ -42,7 +42,27 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
   }
 
   try {
-    const result = await db.prepare(`SELECT * FROM ${table} ORDER BY id DESC LIMIT 100`).all();
+    let query = `SELECT * FROM ${table} ORDER BY id DESC LIMIT 100`;
+    
+    // Special handling for car_bookings - include customer_name via JOINs
+    if (table === 'car_bookings') {
+      query = `
+        SELECT 
+          cb.*,
+          b.booking_code,
+          COALESCE(c.line_display_name, c.name) as customer_name,
+          cc.name as company_name
+        FROM car_bookings cb
+        LEFT JOIN bookings b ON cb.booking_id = b.id
+        LEFT JOIN customers c ON b.customer_id = c.id
+        LEFT JOIN car_companies cc ON cb.car_company_id = cc.id
+        WHERE cb.deleted_at IS NULL
+        ORDER BY cb.service_date ASC, cb.pickup_time ASC
+        LIMIT 500
+      `;
+    }
+    
+    const result = await db.prepare(query).all();
 
     return new Response(
       JSON.stringify({ data: result.results }),
