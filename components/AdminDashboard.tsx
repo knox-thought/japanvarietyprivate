@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { DEFAULT_EXCHANGE_RATE } from '../functions/lib/pricing';
 
 interface QuotationStat {
   total: number;
@@ -167,8 +168,13 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrencyJPY = (amount: number) => {
     return `¥${amount.toLocaleString()}`;
+  };
+
+  const formatCurrencyTHB = (amountJPY: number) => {
+    const thb = Math.round(amountJPY * DEFAULT_EXCHANGE_RATE);
+    return `฿${thb.toLocaleString()}`;
   };
 
   const formatDate = (dateStr: string) => {
@@ -194,7 +200,7 @@ export const AdminDashboard: React.FC = () => {
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900 font-serif">Dashboard</h1>
-        <p className="text-gray-500 mt-1">ภาพรวมการจองและราคาจาก Bookings</p>
+        <p className="text-gray-500 mt-1">ภาพรวมการจองและราคาจาก Bookings (แสดงเป็นบาท อัตรา ¥1 = ฿{DEFAULT_EXCHANGE_RATE})</p>
       </div>
 
       {/* Stats Cards */}
@@ -219,7 +225,7 @@ export const AdminDashboard: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-500">ต้นทุนรวม</p>
-              <p className="text-2xl font-bold text-blue-600 mt-1">{formatCurrency(stats.totalCost)}</p>
+              <p className="text-2xl font-bold text-blue-600 mt-1">{formatCurrencyTHB(stats.totalCost)}</p>
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -234,7 +240,7 @@ export const AdminDashboard: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-500">ยอดขายรวม</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">{formatCurrency(stats.totalSelling)}</p>
+              <p className="text-2xl font-bold text-green-600 mt-1">{formatCurrencyTHB(stats.totalSelling)}</p>
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
               <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -249,7 +255,7 @@ export const AdminDashboard: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-500">กำไรรวม</p>
-              <p className="text-2xl font-bold text-amber-600 mt-1">{formatCurrency(stats.totalProfit)}</p>
+              <p className="text-2xl font-bold text-amber-600 mt-1">{formatCurrencyTHB(stats.totalProfit)}</p>
             </div>
             <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
               <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -549,13 +555,13 @@ export const AdminDashboard: React.FC = () => {
                       {q.operator_name || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-blue-600 font-medium">
-                      {formatCurrency(q.total_cost)}
+                      {formatCurrencyTHB(q.total_cost)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600 font-bold">
-                      {formatCurrency(q.total_selling)}
+                      {formatCurrencyTHB(q.total_selling)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-amber-600 font-medium">
-                      {formatCurrency(q.profit)}
+                      {formatCurrencyTHB(q.profit)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <button
