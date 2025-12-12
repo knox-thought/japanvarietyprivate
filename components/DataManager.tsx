@@ -1436,17 +1436,14 @@ export const DataManager: React.FC = () => {
             <div className="mb-6">
               <CarBookingCalendar
                 bookings={data.map((item: any) => {
+                  // API already returns customer_name with COALESCE(line_display_name, name)
+                  // So we use item.customer_name directly instead of looking up in relatedData
                   const booking = relatedData.bookings?.find((b: any) => b.id === item.booking_id);
-                  const customer = booking 
-                    ? relatedData.customers?.find((c: any) => c.id === booking.customer_id) 
-                    : null;
-                  // Use LINE display name if available, otherwise use name from customers or booking
-                  const customerName = customer?.line_display_name || customer?.name || booking?.customer_name || 'ไม่ระบุ';
                   return {
                     id: item.id,
                     booking_id: item.booking_id,
-                    booking_code: booking?.booking_code,
-                    customer_name: customerName,
+                    booking_code: item.booking_code || booking?.booking_code,
+                    customer_name: item.customer_name || 'ไม่ระบุ',
                     service_date: item.service_date,
                     vehicle_type: item.vehicle_type,
                     service_type: item.service_type,
