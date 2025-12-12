@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { DEFAULT_EXCHANGE_RATE } from '../functions/lib/pricing';
 
-interface QuotationStat {
-  total: number;
-  totalSales: number;       // deposit_amount (THB) - ยอดขาย
-  totalCost: number;        // cost_price (JPY) - ต้นทุน
-  totalSellingPrice: number; // total_price - ราคาขาย
+interface DashboardStat {
+  totalBookings: number;
+  totalSales: number;           // deposit_amount (THB) - ยอดขายรวม
+  pendingPayments: number;      // ค้างชำระยังไม่ถึงกำหนด
+  overduePayments: number;      // ค้างชำระเกินกำหนด
 }
 
 interface RecentQuotation {
@@ -27,11 +27,11 @@ interface AISettings {
 }
 
 export const AdminDashboard: React.FC = () => {
-  const [stats, setStats] = useState<QuotationStat>({
-    total: 0,
+  const [stats, setStats] = useState<DashboardStat>({
+    totalBookings: 0,
     totalSales: 0,        // deposit_amount (THB)
-    totalCost: 0,         // cost_price (JPY)
-    totalSellingPrice: 0, // total_price
+    pendingPayments: 0,   // ค้างชำระยังไม่ถึงกำหนด
+    overduePayments: 0,   // ค้างชำระเกินกำหนด
   });
   const [recentQuotations, setRecentQuotations] = useState<RecentQuotation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -94,30 +94,26 @@ export const AdminDashboard: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      // Fetch bookings instead of quotations
-      const response = await fetch('/api/bookings');
-      if (response.ok) {
-        const data = await response.json();
-        // Response format: { success: true, data: [...] }
+      // Fetch bookings and payments in parallel
+      const [bookingsRes, paymentsRes] = await Promise.all([
+        fetch('/api/bookings'),
+        fetch('/api/data/payments')
+      ]);
+      
+      let totalSales = 0;
+      let pendingPayments = 0;
+      let overduePayments = 0;
+      let totalBookings = 0;
+      
+      if (bookingsRes.ok) {
+        const data = await bookingsRes.json();
         const bookings = (data.success && data.data) ? data.data : [];
+        totalBookings = bookings.length;
         
-        // Calculate stats from bookings
-        // ยอดขาย = deposit_amount (THB) - เงินที่ลูกค้าจ่ายแล้ว/จะจ่าย
-        const totalSales = bookings.reduce((sum: number, b: any) => {
+        // ยอดขายรวม = deposit_amount (THB)
+        totalSales = bookings.reduce((sum: number, b: any) => {
           const deposit = b.deposit_amount ?? 0;
           return sum + (typeof deposit === 'number' ? deposit : 0);
-        }, 0);
-        
-        // ต้นทุน = cost_price (JPY)
-        const totalCost = bookings.reduce((sum: number, b: any) => {
-          const cost = b.cost_price ?? 0;
-          return sum + (typeof cost === 'number' ? cost : 0);
-        }, 0);
-        
-        // ราคาขาย = total_price
-        const totalSellingPrice = bookings.reduce((sum: number, b: any) => {
-          const price = b.total_price ?? 0;
-          return sum + (typeof price === 'number' ? price : 0);
         }, 0);
         
         // Map bookings to RecentQuotation format for display
@@ -133,18 +129,47 @@ export const AdminDashboard: React.FC = () => {
             status: b.status,
             total_cost: typeof cost === 'number' ? cost : 0,
             total_selling: typeof selling === 'number' ? selling : 0,
-            profit: typeof deposit === 'number' ? deposit : 0, // ใช้ deposit_amount แทน
+            profit: typeof deposit === 'number' ? deposit : 0,
           };
         });
-        
-        setStats({
-          total: bookings.length,
-          totalSales,
-          totalCost,
-          totalSellingPrice,
-        });
-        setRecentQuotations(mappedQuotations.slice(0, 10)); // Show latest 10
+        setRecentQuotations(mappedQuotations.slice(0, 10));
       }
+      
+      if (paymentsRes.ok) {
+        const data = await paymentsRes.json();
+        const payments = data.data || [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // Filter payments that are "remaining" type (รอชำระส่วนที่เหลือ)
+        const remainingPayments = payments.filter((p: any) => p.payment_type === 'remaining');
+        
+        remainingPayments.forEach((p: any) => {
+          const amount = p.amount ?? 0;
+          const paidAt = p.paid_at ? new Date(p.paid_at) : null;
+          
+          if (paidAt) {
+            paidAt.setHours(0, 0, 0, 0);
+            if (paidAt < today) {
+              // เลยกำหนดแล้ว
+              overduePayments += (typeof amount === 'number' ? amount : 0);
+            } else {
+              // ยังไม่ถึงกำหนด
+              pendingPayments += (typeof amount === 'number' ? amount : 0);
+            }
+          } else {
+            // ไม่มีวันนัด ถือว่ารอชำระ
+            pendingPayments += (typeof amount === 'number' ? amount : 0);
+          }
+        });
+      }
+      
+      setStats({
+        totalBookings,
+        totalSales,
+        pendingPayments,
+        overduePayments,
+      });
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err);
     } finally {
@@ -217,7 +242,7 @@ export const AdminDashboard: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-500">Bookings ทั้งหมด</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{stats.total}</p>
+              <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalBookings}</p>
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -227,11 +252,26 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
 
+        {/* Pending Payments - ค้างชำระยังไม่ถึงกำหนด */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500">ค้างชำระยังไม่ถึงกำหนด</p>
+              <p className="text-2xl font-bold text-amber-600 mt-1">฿{stats.pendingPayments.toLocaleString()}</p>
+            </div>
+            <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
         {/* Total Sales (deposit_amount - THB) */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500">ยอดขาย (มัดจำ/ชำระ)</p>
+              <p className="text-sm font-medium text-gray-500">ยอดขายรวม</p>
               <p className="text-2xl font-bold text-green-600 mt-1">฿{stats.totalSales.toLocaleString()}</p>
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
@@ -242,31 +282,16 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Total Cost (cost_price - JPY) */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+        {/* Overdue Payments - ค้างชำระเกินกำหนด */}
+        <div className="bg-white rounded-xl border border-red-200 p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500">ต้นทุนรวม (JPY)</p>
-              <p className="text-2xl font-bold text-blue-600 mt-1">¥{stats.totalCost.toLocaleString()}</p>
+              <p className="text-sm font-medium text-gray-500">ค้างชำระเกินกำหนด</p>
+              <p className="text-2xl font-bold text-red-600 mt-1">฿{stats.overduePayments.toLocaleString()}</p>
             </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        {/* Total Selling Price (total_price) */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500">ราคาขายรวม</p>
-              <p className="text-2xl font-bold text-amber-600 mt-1">฿{stats.totalSellingPrice.toLocaleString()}</p>
-            </div>
-            <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
           </div>
