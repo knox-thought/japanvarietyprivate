@@ -185,6 +185,7 @@ const TABLES: TableConfig[] = [
         { value: 'JPY', label: 'JPY (เยน)' },
         { value: 'USD', label: 'USD (ดอลลาร์)' },
       ]},
+      { name: 'paid_at', label: 'วันที่ชำระ/นัดชำระ', type: 'datetime' },
       { name: 'payment_method', label: 'ช่องทาง', type: 'select', options: [
         { value: 'bank_transfer', label: '🏦 โอนเงิน' },
         { value: 'credit_card', label: '💳 บัตรเครดิต' },
@@ -193,7 +194,6 @@ const TABLES: TableConfig[] = [
       ]},
       { name: 'slip_url', label: 'สลิปการโอน', type: 'image', uploadFolder: 'payment-slips' },
       { name: 'reference_no', label: 'เลขอ้างอิง', type: 'text', placeholder: 'REF-xxx' },
-      { name: 'paid_at', label: 'วันที่ชำระ/นัดชำระ', type: 'datetime' },
       { name: 'verified_at', label: 'วันที่ตรวจสอบ', type: 'datetime' },
       { name: 'verified_by', label: 'ตรวจสอบโดย', type: 'relation', relationTable: 'users', relationLabelField: 'name' },
       { name: 'notes', label: 'หมายเหตุ', type: 'textarea' },
