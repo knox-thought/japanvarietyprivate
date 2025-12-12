@@ -124,12 +124,6 @@ export const AdminDashboard: React.FC = () => {
           return sum + (typeof price === 'number' ? price : 0);
         }, 0);
         
-        // 3. ยอดขายรวม = deposit_amount (THB)
-        totalSalesTHB = bookings.reduce((sum: number, b: any) => {
-          const deposit = b.deposit_amount ?? 0;
-          return sum + (typeof deposit === 'number' ? deposit : 0);
-        }, 0);
-        
         // Map bookings to RecentQuotation format for display
         const mappedQuotations: RecentQuotation[] = bookings.map((b: any) => {
           const deposit = b.deposit_amount ?? 0;
@@ -154,6 +148,12 @@ export const AdminDashboard: React.FC = () => {
         const payments = data.data || [];
         const today = new Date();
         today.setHours(0, 0, 0, 0);
+        
+        // 3. ยอดขายรวม = SUM ของ payments ทั้งหมด
+        totalSalesTHB = payments.reduce((sum: number, p: any) => {
+          const amount = p.amount ?? 0;
+          return sum + (typeof amount === 'number' ? amount : 0);
+        }, 0);
         
         // Filter payments that are "remaining" type (รอชำระส่วนที่เหลือ)
         const remainingPayments = payments.filter((p: any) => p.payment_type === 'remaining');
