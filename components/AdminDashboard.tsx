@@ -3,9 +3,9 @@ import { DEFAULT_EXCHANGE_RATE } from '../functions/lib/pricing';
 
 interface QuotationStat {
   total: number;
-  totalCost: number;
-  totalSelling: number;
-  totalProfit: number;
+  totalSales: number;       // deposit_amount (THB) - ยอดขาย
+  totalCost: number;        // cost_price (JPY) - ต้นทุน
+  totalSellingPrice: number; // total_price - ราคาขาย
 }
 
 interface RecentQuotation {
@@ -29,9 +29,9 @@ interface AISettings {
 export const AdminDashboard: React.FC = () => {
   const [stats, setStats] = useState<QuotationStat>({
     total: 0,
-    totalCost: 0,
-    totalSelling: 0,
-    totalProfit: 0,
+    totalSales: 0,        // deposit_amount (THB)
+    totalCost: 0,         // cost_price (JPY)
+    totalSellingPrice: 0, // total_price
   });
   const [recentQuotations, setRecentQuotations] = useState<RecentQuotation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -102,20 +102,27 @@ export const AdminDashboard: React.FC = () => {
         const bookings = (data.success && data.data) ? data.data : [];
         
         // Calculate stats from bookings
-        // Note: bookings may have cost_price and total_price (selling price)
-        // If cost_price doesn't exist (null/undefined), treat as 0
+        // ยอดขาย = deposit_amount (THB) - เงินที่ลูกค้าจ่ายแล้ว/จะจ่าย
+        const totalSales = bookings.reduce((sum: number, b: any) => {
+          const deposit = b.deposit_amount ?? 0;
+          return sum + (typeof deposit === 'number' ? deposit : 0);
+        }, 0);
+        
+        // ต้นทุน = cost_price (JPY)
         const totalCost = bookings.reduce((sum: number, b: any) => {
           const cost = b.cost_price ?? 0;
           return sum + (typeof cost === 'number' ? cost : 0);
         }, 0);
-        const totalSelling = bookings.reduce((sum: number, b: any) => {
+        
+        // ราคาขาย = total_price
+        const totalSellingPrice = bookings.reduce((sum: number, b: any) => {
           const price = b.total_price ?? 0;
           return sum + (typeof price === 'number' ? price : 0);
         }, 0);
-        const totalProfit = totalSelling - totalCost;
         
         // Map bookings to RecentQuotation format for display
         const mappedQuotations: RecentQuotation[] = bookings.map((b: any) => {
+          const deposit = b.deposit_amount ?? 0;
           const cost = b.cost_price ?? 0;
           const selling = b.total_price ?? 0;
           return {
@@ -126,15 +133,15 @@ export const AdminDashboard: React.FC = () => {
             status: b.status,
             total_cost: typeof cost === 'number' ? cost : 0,
             total_selling: typeof selling === 'number' ? selling : 0,
-            profit: (typeof selling === 'number' ? selling : 0) - (typeof cost === 'number' ? cost : 0),
+            profit: typeof deposit === 'number' ? deposit : 0, // ใช้ deposit_amount แทน
           };
         });
         
         setStats({
           total: bookings.length,
+          totalSales,
           totalCost,
-          totalSelling,
-          totalProfit,
+          totalSellingPrice,
         });
         setRecentQuotations(mappedQuotations.slice(0, 10)); // Show latest 10
       }
@@ -200,7 +207,7 @@ export const AdminDashboard: React.FC = () => {
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900 font-serif">Dashboard</h1>
-        <p className="text-gray-500 mt-1">ภาพรวมการจองและราคาจาก Bookings (แสดงเป็นบาท อัตรา ¥1 = ฿{DEFAULT_EXCHANGE_RATE})</p>
+        <p className="text-gray-500 mt-1">ภาพรวมการจองจาก Bookings</p>
       </div>
 
       {/* Stats Cards */}
@@ -220,27 +227,12 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Total Cost */}
+        {/* Total Sales (deposit_amount - THB) */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500">ต้นทุนรวม</p>
-              <p className="text-2xl font-bold text-blue-600 mt-1">{formatCurrencyTHB(stats.totalCost)}</p>
-            </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        {/* Total Selling */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500">ยอดขายรวม</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">{formatCurrencyTHB(stats.totalSelling)}</p>
+              <p className="text-sm font-medium text-gray-500">ยอดขาย (มัดจำ/ชำระ)</p>
+              <p className="text-2xl font-bold text-green-600 mt-1">฿{stats.totalSales.toLocaleString()}</p>
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
               <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -250,12 +242,27 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Total Profit */}
+        {/* Total Cost (cost_price - JPY) */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500">กำไรรวม</p>
-              <p className="text-2xl font-bold text-amber-600 mt-1">{formatCurrencyTHB(stats.totalProfit)}</p>
+              <p className="text-sm font-medium text-gray-500">ต้นทุนรวม (JPY)</p>
+              <p className="text-2xl font-bold text-blue-600 mt-1">¥{stats.totalCost.toLocaleString()}</p>
+            </div>
+            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Total Selling Price (total_price) */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500">ราคาขายรวม</p>
+              <p className="text-2xl font-bold text-amber-600 mt-1">฿{stats.totalSellingPrice.toLocaleString()}</p>
             </div>
             <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
               <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
