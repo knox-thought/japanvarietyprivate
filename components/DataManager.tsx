@@ -177,7 +177,6 @@ const TABLES: TableConfig[] = [
         { value: 'deposit', label: '💰 มัดจำ' },
         { value: 'full', label: '💵 ชำระเต็ม' },
         { value: 'remaining', label: '⏳ รอชำระส่วนที่เหลือ' },
-        { value: 'partial', label: '📊 ชำระบางส่วน' },
         { value: 'refund', label: '↩️ คืนเงิน' },
       ]},
       { name: 'amount', label: 'จำนวนเงิน', type: 'number', required: true, placeholder: '0' },
@@ -1531,9 +1530,11 @@ export const DataManager: React.FC = () => {
                 {data.map((item) => {
                   // Payment row styling logic
                   const isPayment = activeTable === 'payments';
-                  const isPendingRemaining = isPayment && item.payment_type === 'remaining' && !item.paid_at;
-                  const isFullyPaid = isPayment && item.payment_type === 'full' && item.paid_at;
-                  const isOverdue = isPayment && !item.paid_at && item.payment_type !== 'remaining';
+                  const isDeposit = isPayment && item.payment_type === 'deposit';
+                  const isFullPayment = isPayment && item.payment_type === 'full';
+                  const isRemaining = isPayment && item.payment_type === 'remaining';
+                  // Check if remaining payment is overdue (past scheduled date)
+                  const isOverdueRemaining = isRemaining && item.paid_at && new Date(item.paid_at) < new Date() && !item.verified_at;
                   const isSelected = selectedItems.includes(item.id);
                   
                   return (
@@ -1541,9 +1542,10 @@ export const DataManager: React.FC = () => {
                     key={item.id} 
                     className={clsx(
                       "hover:bg-gray-50",
-                      isPendingRemaining && "bg-blue-50 hover:bg-blue-100",
-                      isOverdue && "bg-red-50 hover:bg-red-100",
-                      isFullyPaid && "bg-green-50 hover:bg-green-100",
+                      isDeposit && "bg-blue-50 hover:bg-blue-100",
+                      isRemaining && !isOverdueRemaining && "bg-red-50 hover:bg-red-100",
+                      isOverdueRemaining && "bg-red-200 hover:bg-red-300",
+                      isFullPayment && "bg-green-50 hover:bg-green-100",
                       isSelected && "bg-amber-50"
                     )}
                   >
@@ -1561,9 +1563,10 @@ export const DataManager: React.FC = () => {
                         className={clsx(
                           "px-4 py-3 text-sm max-w-[200px]",
                           field.name === 'booking_id' ? "" : "truncate",
-                          isPendingRemaining ? "text-blue-700 font-medium" : 
-                          isOverdue ? "text-red-700 font-medium" : 
-                          isFullyPaid ? "text-green-700 font-medium" : "text-gray-900"
+                          isDeposit ? "text-blue-700 font-medium" : 
+                          isOverdueRemaining ? "text-red-900 font-bold" :
+                          isRemaining ? "text-red-700 font-medium" : 
+                          isFullPayment ? "text-green-700 font-medium" : "text-gray-900"
                         )}
                       >
                         {formatCellValue(field, item[field.name], field.name === 'booking_id')}
