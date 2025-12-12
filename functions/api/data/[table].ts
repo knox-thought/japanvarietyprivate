@@ -56,7 +56,6 @@ export const onRequestGet = async ({ request, env, params }: { request: Request;
         LEFT JOIN bookings b ON cb.booking_id = b.id
         LEFT JOIN customers c ON b.customer_id = c.id
         LEFT JOIN car_companies cc ON cb.car_company_id = cc.id
-        WHERE cb.deleted_at IS NULL
         ORDER BY cb.service_date ASC, cb.pickup_time ASC
         LIMIT 500
       `;
