@@ -17,7 +17,7 @@ interface RecentQuotation {
   status: string;
   total_cost: number;
   total_selling: number;
-  profit: number;
+  total_payments: number; // ยอดชำระรวมจาก payments (THB)
 }
 
 interface AISettings {
@@ -124,58 +124,69 @@ export const AdminDashboard: React.FC = () => {
           return sum + (typeof price === 'number' ? price : 0);
         }, 0);
         
-        // Map bookings to RecentQuotation format for display
-        const mappedQuotations: RecentQuotation[] = bookings.map((b: any) => {
-          const deposit = b.deposit_amount ?? 0;
-          const cost = b.cost_price ?? 0;
-          const selling = b.total_price ?? 0;
-          return {
-            id: b.id,
-            customer_name: b.customer_name || '-',
-            operator_name: b.operator_name || undefined,
-            created_at: b.created_at,
-            status: b.status,
-            total_cost: typeof cost === 'number' ? cost : 0,
-            total_selling: typeof selling === 'number' ? selling : 0,
-            profit: typeof deposit === 'number' ? deposit : 0,
-          };
-        });
-        setRecentQuotations(mappedQuotations.slice(0, 10));
-      }
-      
-      if (paymentsRes.ok) {
-        const data = await paymentsRes.json();
-        const payments = data.data || [];
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        // Store bookings for later mapping with payments
+        const bookingsData = bookings;
         
-        // 3. ยอดขายรวม = SUM ของ payments ทั้งหมด
-        totalSalesTHB = payments.reduce((sum: number, p: any) => {
-          const amount = p.amount ?? 0;
-          return sum + (typeof amount === 'number' ? amount : 0);
-        }, 0);
-        
-        // Filter payments that are "remaining" type (รอชำระส่วนที่เหลือ)
-        const remainingPayments = payments.filter((p: any) => p.payment_type === 'remaining');
-        
-        remainingPayments.forEach((p: any) => {
-          const amount = p.amount ?? 0;
-          const paidAt = p.paid_at ? new Date(p.paid_at) : null;
+        if (paymentsRes.ok) {
+          const paymentsData = await paymentsRes.json();
+          const payments = paymentsData.data || [];
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
           
-          if (paidAt) {
-            paidAt.setHours(0, 0, 0, 0);
-            if (paidAt < today) {
-              // 5. เลยกำหนดแล้ว
-              overduePayments += (typeof amount === 'number' ? amount : 0);
+          // Group payments by booking_id
+          const paymentsByBooking: Record<number, number> = {};
+          payments.forEach((p: any) => {
+            const bookingId = p.booking_id;
+            const amount = p.amount ?? 0;
+            if (bookingId) {
+              paymentsByBooking[bookingId] = (paymentsByBooking[bookingId] || 0) + 
+                (typeof amount === 'number' ? amount : 0);
+            }
+          });
+          
+          // 3. ยอดขายรวม = SUM ของ payments ทั้งหมด
+          totalSalesTHB = payments.reduce((sum: number, p: any) => {
+            const amount = p.amount ?? 0;
+            return sum + (typeof amount === 'number' ? amount : 0);
+          }, 0);
+          
+          // Filter payments that are "remaining" type (รอชำระส่วนที่เหลือ)
+          const remainingPayments = payments.filter((p: any) => p.payment_type === 'remaining');
+          
+          remainingPayments.forEach((p: any) => {
+            const amount = p.amount ?? 0;
+            const paidAt = p.paid_at ? new Date(p.paid_at) : null;
+            
+            if (paidAt) {
+              paidAt.setHours(0, 0, 0, 0);
+              if (paidAt < today) {
+                overduePayments += (typeof amount === 'number' ? amount : 0);
+              } else {
+                pendingPayments += (typeof amount === 'number' ? amount : 0);
+              }
             } else {
-              // 4. ยังไม่ถึงกำหนด
               pendingPayments += (typeof amount === 'number' ? amount : 0);
             }
-          } else {
-            // ไม่มีวันนัด ถือว่ารอชำระ
-            pendingPayments += (typeof amount === 'number' ? amount : 0);
-          }
-        });
+          });
+          
+          // Map bookings to RecentQuotation format for display
+          const mappedQuotations: RecentQuotation[] = bookingsData.map((b: any) => {
+            const cost = b.cost_price ?? 0;
+            const selling = b.total_price ?? 0;
+            const totalPayments = paymentsByBooking[b.id] || 0;
+            return {
+              id: b.id,
+              customer_name: b.customer_name || '-',
+              operator_name: b.operator_name || undefined,
+              created_at: b.created_at,
+              status: b.status,
+              total_cost: typeof cost === 'number' ? cost : 0,
+              total_selling: typeof selling === 'number' ? selling : 0,
+              total_payments: totalPayments,
+            };
+          });
+          setRecentQuotations(mappedQuotations.slice(0, 10));
+        }
       }
       
       setStats({
@@ -598,9 +609,9 @@ export const AdminDashboard: React.FC = () => {
                   <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">วันที่</th>
                   <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">ลูกค้า</th>
                   <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Operator</th>
-                  <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">ต้นทุน</th>
-                  <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">ราคาขาย</th>
-                  <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">กำไร</th>
+                  <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">ต้นทุน (¥)</th>
+                  <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">ราคาขาย (¥)</th>
+                  <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">ยอดชำระ (฿)</th>
                   <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">จัดการ</th>
                 </tr>
               </thead>
@@ -623,7 +634,7 @@ export const AdminDashboard: React.FC = () => {
                       {formatCurrencyJPY(q.total_selling)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-amber-600 font-medium">
-                      {formatCurrencyJPY(q.total_selling - q.total_cost)}
+                      ฿{q.total_payments.toLocaleString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <button
