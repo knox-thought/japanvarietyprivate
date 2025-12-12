@@ -617,13 +617,13 @@ export const AdminDashboard: React.FC = () => {
                       {q.operator_name || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-blue-600 font-medium">
-                      {formatCurrencyTHB(q.total_cost)}
+                      {formatCurrencyJPY(q.total_cost)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600 font-bold">
-                      {formatCurrencyTHB(q.total_selling)}
+                      {formatCurrencyJPY(q.total_selling)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-amber-600 font-medium">
-                      {formatCurrencyTHB(q.profit)}
+                      {formatCurrencyJPY(q.total_selling - q.total_cost)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <button
