@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { DEFAULT_EXCHANGE_RATE } from '../functions/lib/pricing';
 
 interface DashboardStat {
-  totalBookings: number;
-  totalSales: number;           // deposit_amount (THB) - ยอดขายรวม
-  pendingPayments: number;      // ค้างชำระยังไม่ถึงกำหนด
-  overduePayments: number;      // ค้างชำระเกินกำหนด
+  totalCostJPY: number;         // 1. ยอดเยนต้นทุน (cost_price)
+  totalSellingJPY: number;      // 2. ยอดเยนราคาขาย (total_price)
+  totalSalesTHB: number;        // 3. ยอดขายรวม (deposit_amount THB)
+  pendingPayments: number;      // 4. ค้างชำระยังไม่เกินกำหนด
+  overduePayments: number;      // 5. ค้างชำระเกินกำหนด
 }
 
 interface RecentQuotation {
@@ -28,10 +29,11 @@ interface AISettings {
 
 export const AdminDashboard: React.FC = () => {
   const [stats, setStats] = useState<DashboardStat>({
-    totalBookings: 0,
-    totalSales: 0,        // deposit_amount (THB)
-    pendingPayments: 0,   // ค้างชำระยังไม่ถึงกำหนด
-    overduePayments: 0,   // ค้างชำระเกินกำหนด
+    totalCostJPY: 0,       // ยอดเยนต้นทุน
+    totalSellingJPY: 0,    // ยอดเยนราคาขาย
+    totalSalesTHB: 0,      // ยอดขายรวม (THB)
+    pendingPayments: 0,    // ค้างชำระยังไม่เกินกำหนด
+    overduePayments: 0,    // ค้างชำระเกินกำหนด
   });
   const [recentQuotations, setRecentQuotations] = useState<RecentQuotation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -100,18 +102,30 @@ export const AdminDashboard: React.FC = () => {
         fetch('/api/data/payments')
       ]);
       
-      let totalSales = 0;
+      let totalCostJPY = 0;
+      let totalSellingJPY = 0;
+      let totalSalesTHB = 0;
       let pendingPayments = 0;
       let overduePayments = 0;
-      let totalBookings = 0;
       
       if (bookingsRes.ok) {
         const data = await bookingsRes.json();
         const bookings = (data.success && data.data) ? data.data : [];
-        totalBookings = bookings.length;
         
-        // ยอดขายรวม = deposit_amount (THB)
-        totalSales = bookings.reduce((sum: number, b: any) => {
+        // 1. ยอดเยนต้นทุน = cost_price (JPY)
+        totalCostJPY = bookings.reduce((sum: number, b: any) => {
+          const cost = b.cost_price ?? 0;
+          return sum + (typeof cost === 'number' ? cost : 0);
+        }, 0);
+        
+        // 2. ยอดเยนราคาขาย = total_price (JPY)
+        totalSellingJPY = bookings.reduce((sum: number, b: any) => {
+          const price = b.total_price ?? 0;
+          return sum + (typeof price === 'number' ? price : 0);
+        }, 0);
+        
+        // 3. ยอดขายรวม = deposit_amount (THB)
+        totalSalesTHB = bookings.reduce((sum: number, b: any) => {
           const deposit = b.deposit_amount ?? 0;
           return sum + (typeof deposit === 'number' ? deposit : 0);
         }, 0);
@@ -151,10 +165,10 @@ export const AdminDashboard: React.FC = () => {
           if (paidAt) {
             paidAt.setHours(0, 0, 0, 0);
             if (paidAt < today) {
-              // เลยกำหนดแล้ว
+              // 5. เลยกำหนดแล้ว
               overduePayments += (typeof amount === 'number' ? amount : 0);
             } else {
-              // ยังไม่ถึงกำหนด
+              // 4. ยังไม่ถึงกำหนด
               pendingPayments += (typeof amount === 'number' ? amount : 0);
             }
           } else {
@@ -165,8 +179,9 @@ export const AdminDashboard: React.FC = () => {
       }
       
       setStats({
-        totalBookings,
-        totalSales,
+        totalCostJPY,
+        totalSellingJPY,
+        totalSalesTHB,
         pendingPayments,
         overduePayments,
       });
@@ -235,28 +250,58 @@ export const AdminDashboard: React.FC = () => {
         <p className="text-gray-500 mt-1">ภาพรวมการจองจาก Bookings</p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Bookings */}
+      {/* Stats Cards - 5 cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* 1. ยอดเยนต้นทุน (cost_price - JPY) */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500">Bookings ทั้งหมด</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalBookings}</p>
+              <p className="text-sm font-medium text-gray-500">ยอดเยนต้นทุน</p>
+              <p className="text-2xl font-bold text-blue-600 mt-1">¥{stats.totalCostJPY.toLocaleString()}</p>
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
           </div>
         </div>
 
-        {/* Pending Payments - ค้างชำระยังไม่ถึงกำหนด */}
+        {/* 2. ยอดเยนราคาขาย (total_price - JPY) */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500">ค้างชำระยังไม่ถึงกำหนด</p>
+              <p className="text-sm font-medium text-gray-500">ยอดเยนราคาขาย</p>
+              <p className="text-2xl font-bold text-purple-600 mt-1">¥{stats.totalSellingJPY.toLocaleString()}</p>
+            </div>
+            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* 3. ยอดขายรวม (deposit_amount - THB) */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500">ยอดขายรวม</p>
+              <p className="text-2xl font-bold text-green-600 mt-1">฿{stats.totalSalesTHB.toLocaleString()}</p>
+            </div>
+            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* 4. ค้างชำระยังไม่เกินกำหนด */}
+        <div className="bg-white rounded-xl border border-amber-200 p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500">ค้างชำระยังไม่เกินกำหนด</p>
               <p className="text-2xl font-bold text-amber-600 mt-1">฿{stats.pendingPayments.toLocaleString()}</p>
             </div>
             <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
@@ -267,22 +312,7 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Total Sales (deposit_amount - THB) */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500">ยอดขายรวม</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">฿{stats.totalSales.toLocaleString()}</p>
-            </div>
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        {/* Overdue Payments - ค้างชำระเกินกำหนด */}
+        {/* 5. ค้างชำระเกินกำหนด */}
         <div className="bg-white rounded-xl border border-red-200 p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
