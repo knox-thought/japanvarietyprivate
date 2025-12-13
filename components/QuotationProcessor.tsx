@@ -843,28 +843,54 @@ Date:2026-02-21
                 </div>
               ))}
 
-              <div className="border-t border-gray-200 pt-3 space-y-2">
+              <div className="border-t border-gray-200 pt-3 space-y-3">
+                {/* 1. ราคาต้นทุน (เยน) */}
                 <div className="flex justify-between items-center">
-                  <span className="font-bold text-gray-900">รวมราคาขาย:</span>
-                  <div className="text-right">
-                    <span className="text-xl font-bold text-amber-600">
-                      {formatPrice(displayTotalSelling, '¥')}
-                    </span>
-                    <div className="text-sm text-blue-600 font-medium">
-                      {Math.round(convertJPYtoTHB(displayTotalSelling, exchangeRate)).toLocaleString()} บาท
-                    </div>
-                  </div>
+                  <span className="text-sm text-gray-600">ต้นทุน:</span>
+                  <span className="font-bold text-blue-600">
+                    {formatPrice(result.totalCost, '¥')}
+                  </span>
                 </div>
-                <div className="flex justify-between items-center text-sm text-gray-500">
-                  <span>กำไร:</span>
-                  <div className="text-right">
-                    <span className="font-medium text-green-600">
-                      {formatPrice(displayTotalSelling - result.totalCost, '¥')} ({Math.round((displayTotalSelling - result.totalCost) / result.totalCost * 100)}%)
-                    </span>
-                    <div className="text-xs text-green-500">
-                      {Math.round(convertJPYtoTHB(displayTotalSelling - result.totalCost, exchangeRate)).toLocaleString()} บาท
-                    </div>
-                  </div>
+                
+                {/* 2. ราคาขาย (เยน) */}
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">ราคาขาย:</span>
+                  <span className="text-xl font-bold text-amber-600">
+                    {formatPrice(displayTotalSelling, '¥')}
+                  </span>
+                </div>
+                
+                {/* 3. ราคาบาท (รวม VAT) */}
+                {(() => {
+                  const thbTotal = Math.round(convertJPYtoTHB(displayTotalSelling, exchangeRate));
+                  const thbBeforeVat = Math.round(thbTotal / 1.07);
+                  const vatAmount = thbTotal - thbBeforeVat;
+                  return (
+                    <>
+                      <div className="flex justify-between items-center bg-green-50 p-2 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700">ราคาบาท:</span>
+                        <span className="text-xl font-bold text-green-600">
+                          {thbTotal.toLocaleString()} บาท
+                        </span>
+                      </div>
+                      
+                      {/* 4. ราคาก่อน VAT (VAT ในวงเล็บ) */}
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-500">ก่อน VAT:</span>
+                        <span className="text-gray-700">
+                          {thbBeforeVat.toLocaleString()} บาท <span className="text-amber-600">(VAT {vatAmount.toLocaleString()} บาท)</span>
+                        </span>
+                      </div>
+                    </>
+                  );
+                })()}
+
+                {/* กำไร */}
+                <div className="flex justify-between items-center text-sm pt-2 border-t border-gray-100">
+                  <span className="text-gray-500">กำไร:</span>
+                  <span className="font-medium text-green-600">
+                    {formatPrice(displayTotalSelling - result.totalCost, '¥')} ({Math.round((displayTotalSelling - result.totalCost) / result.totalCost * 100)}%)
+                  </span>
                 </div>
               </div>
 

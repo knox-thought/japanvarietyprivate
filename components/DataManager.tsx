@@ -1403,17 +1403,44 @@ export const DataManager: React.FC = () => {
                     ))}
                   </div>
                   
-                  <div className="mt-3 pt-2 border-t border-amber-200">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-bold text-gray-700">รวมทั้งหมด:</span>
-                      <div className="text-right">
-                        <span className="text-lg font-bold text-amber-600">¥{totalSelling.toLocaleString()}</span>
-                        <span className="text-sm text-blue-600 ml-2">
-                          ({Math.round(convertJPYtoTHB(totalSelling, exchangeRate)).toLocaleString()} บาท)
-                        </span>
-                      </div>
+                  <div className="mt-3 pt-2 border-t border-amber-200 space-y-2">
+                    {/* 1. ราคาต้นทุน (เยน) */}
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600">ต้นทุน:</span>
+                      <span className="font-bold text-blue-600">¥{totalCost.toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between items-center text-xs text-gray-500 mt-1">
+                    
+                    {/* 2. ราคาขาย (เยน) */}
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">ราคาขาย:</span>
+                      <span className="text-lg font-bold text-amber-600">¥{totalSelling.toLocaleString()}</span>
+                    </div>
+                    
+                    {/* 3. ราคาบาท (รวม VAT) */}
+                    {(() => {
+                      const thbTotal = Math.round(convertJPYtoTHB(totalSelling, exchangeRate));
+                      const thbBeforeVat = Math.round(thbTotal / 1.07);
+                      const vatAmount = thbTotal - thbBeforeVat;
+                      return (
+                        <>
+                          <div className="flex justify-between items-center bg-green-100 p-1.5 rounded">
+                            <span className="text-sm font-medium text-gray-700">ราคาบาท:</span>
+                            <span className="text-lg font-bold text-green-600">{thbTotal.toLocaleString()} บาท</span>
+                          </div>
+                          
+                          {/* 4. ราคาก่อน VAT (VAT ในวงเล็บ) */}
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-gray-500">ก่อน VAT:</span>
+                            <span className="text-gray-600">
+                              {thbBeforeVat.toLocaleString()} บาท <span className="text-amber-600">(VAT {vatAmount.toLocaleString()} บาท)</span>
+                            </span>
+                          </div>
+                        </>
+                      );
+                    })()}
+
+                    {/* กำไร */}
+                    <div className="flex justify-between items-center text-xs text-gray-500 pt-1 border-t border-amber-100">
                       <span>กำไร:</span>
                       <span className="text-green-600 font-medium">
                         ¥{(totalSelling - totalCost).toLocaleString()} ({Math.round((totalSelling - totalCost) / totalCost * 100)}%)
