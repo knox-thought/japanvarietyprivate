@@ -37,7 +37,6 @@ export const AdminDashboard: React.FC = () => {
   });
   const [recentQuotations, setRecentQuotations] = useState<RecentQuotation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [aiSettings, setAISettings] = useState<AISettings>({});
   const [showAISettings, setShowAISettings] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
@@ -220,36 +219,8 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const deleteQuotation = async (id: number) => {
-    // Note: Bookings should not be deleted from dashboard
-    // This is kept for compatibility but bookings deletion should be handled differently
-    if (!confirm('ต้องการลบ Booking นี้ใช่ไหม? (ไม่แนะนำ)')) return;
-    
-    setDeletingId(id);
-    try {
-      const response = await fetch(`/api/bookings/${id}`, {
-        method: 'DELETE',
-      });
-      if (response.ok) {
-        fetchData(); // Refresh the list
-      } else {
-        alert('ลบไม่สำเร็จ กรุณาลองใหม่');
-      }
-    } catch (err) {
-      console.error('Failed to delete booking:', err);
-      alert('ลบไม่สำเร็จ กรุณาลองใหม่');
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
   const formatCurrencyJPY = (amount: number) => {
     return `¥${amount.toLocaleString()}`;
-  };
-
-  const formatCurrencyTHB = (amountJPY: number) => {
-    const thb = Math.round(amountJPY * DEFAULT_EXCHANGE_RATE);
-    return `฿${thb.toLocaleString()}`;
   };
 
   const formatDate = (dateStr: string) => {
