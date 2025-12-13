@@ -105,6 +105,7 @@ export const QuotationProcessor: React.FC = () => {
   useEffect(() => {
     fetchQuotations();
     fetchBookings();
+    fetchCarCompanies();
   }, []);
 
   // Fetch bookings for dropdown
