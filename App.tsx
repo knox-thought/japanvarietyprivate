@@ -5,13 +5,14 @@ import { AdminLayout } from './components/AdminLayout';
 import { AdminDashboard } from './components/AdminDashboard';
 import { QuotationProcessor } from './components/QuotationProcessor';
 import { DataManager } from './components/DataManager';
+import { PriceTable } from './components/PriceTable';
 import { TripPreferences, AIItineraryResponse } from './types';
 import { generateItinerary } from './services/geminiService';
 import { Sparkles } from './components/Icons';
 import logoImage from './logo/japan-variety-logo-1.png';
 
-type AppPage = 'main' | 'admin-dashboard' | 'admin-processor' | 'admin-data';
-type AdminPage = 'dashboard' | 'processor' | 'data';
+type AppPage = 'main' | 'admin-dashboard' | 'admin-processor' | 'admin-data' | 'admin-table';
+type AdminPage = 'dashboard' | 'processor' | 'data' | 'table';
 
 function App() {
   const [page, setPage] = useState<AppPage>('main');
@@ -30,6 +31,8 @@ function App() {
         setPage('admin-processor');
       } else if (path === '/admin/data') {
         setPage('admin-data');
+      } else if (path === '/admin/table') {
+        setPage('admin-table');
       } else {
         setPage('main');
       }
@@ -53,6 +56,8 @@ function App() {
       navigateTo('/admin/processor');
     } else if (adminPage === 'data') {
       navigateTo('/admin/data');
+    } else if (adminPage === 'table') {
+      navigateTo('/admin/table');
     }
   };
 
@@ -114,10 +119,11 @@ function App() {
   };
 
   // Admin Pages
-  if (page === 'admin-dashboard' || page === 'admin-processor' || page === 'admin-data') {
+  if (page === 'admin-dashboard' || page === 'admin-processor' || page === 'admin-data' || page === 'admin-table') {
     const currentAdminPage: AdminPage = 
       page === 'admin-dashboard' ? 'dashboard' : 
-      page === 'admin-processor' ? 'processor' : 'data';
+      page === 'admin-processor' ? 'processor' : 
+      page === 'admin-table' ? 'table' : 'data';
     
     return (
       <AdminLayout currentPage={currentAdminPage} onPageChange={handleAdminPageChange}>
@@ -125,6 +131,8 @@ function App() {
           <AdminDashboard />
         ) : currentAdminPage === 'processor' ? (
           <QuotationProcessor />
+        ) : currentAdminPage === 'table' ? (
+          <PriceTable />
         ) : (
           <DataManager />
         )}
