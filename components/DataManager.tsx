@@ -317,6 +317,7 @@ export const DataManager: React.FC = () => {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+  const [isFormClosing, setIsFormClosing] = useState(false);
   
   // Pricing inputs for bookings
   const [marginPercent, setMarginPercent] = useState<number>(DEFAULT_MARGIN_PERCENT);
@@ -468,12 +469,24 @@ export const DataManager: React.FC = () => {
     setIsFormOpen(true);
   };
 
-  const closeForm = () => {
-    setIsFormOpen(false);
-    setEditingItem(null);
-    setFormData({});
-    setProcessedDays([]); // Clear processed days when form closes
-    setEditingDayIndex(null);
+  const closeForm = (withRefresh: boolean = false) => {
+    // Start closing animation
+    setIsFormClosing(true);
+    
+    // After animation completes, actually close and optionally refresh
+    setTimeout(() => {
+      setIsFormOpen(false);
+      setIsFormClosing(false);
+      setEditingItem(null);
+      setFormData({});
+      setProcessedDays([]);
+      setEditingDayIndex(null);
+      
+      // Refresh data after form is fully closed (silent)
+      if (withRefresh) {
+        fetchData(true);
+      }
+    }, 150); // Match animation duration
   };
 
   const handleInputChange = async (field: string, value: any) => {
@@ -1154,8 +1167,7 @@ export const DataManager: React.FC = () => {
       }
       showSuccess(successMsg);
 
-      closeForm();
-      fetchData(true); // Silent refresh - no loading flicker
+      closeForm(true); // Close with animation, then refresh
     } catch (err) {
       setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการบันทึก');
     } finally {
@@ -1919,23 +1931,23 @@ export const DataManager: React.FC = () => {
 
       {/* Modal Form */}
       {isFormOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className={`fixed inset-0 z-50 overflow-y-auto transition-opacity duration-150 ${isFormClosing ? 'opacity-0' : 'opacity-100'}`}>
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20">
             {/* Backdrop */}
             <div 
-              className="fixed inset-0 bg-black/50 transition-opacity"
-              onClick={closeForm}
+              className={`fixed inset-0 bg-black/50 transition-opacity duration-150 ${isFormClosing ? 'opacity-0' : 'opacity-100'}`}
+              onClick={() => closeForm(false)}
             ></div>
 
             {/* Modal */}
-            <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-auto z-10 animate-fadeIn">
+            <div className={`relative bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-auto z-10 transition-all duration-150 ${isFormClosing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
               {/* Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
                 <h3 className="text-lg font-bold text-gray-900">
                   {editingItem ? `แก้ไข${currentTable.label}` : `เพิ่ม${currentTable.label}ใหม่`}
                 </h3>
                 <button
-                  onClick={closeForm}
+                  onClick={() => closeForm(false)}
                   className="p-1 text-gray-400 hover:text-gray-600 rounded-lg"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1978,7 +1990,7 @@ export const DataManager: React.FC = () => {
                 <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
                   <button
                     type="button"
-                    onClick={closeForm}
+                    onClick={() => closeForm(false)}
                     className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium transition-colors"
                   >
                     ยกเลิก
