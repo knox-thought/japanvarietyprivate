@@ -14,9 +14,10 @@ interface RecentQuotation {
   customer_name: string;
   created_at: string;
   status: string;
-  total_cost: number;
-  total_selling: number;
-  total_payments: number; // ยอดชำระรวมจาก payments (THB)
+  total_cost: number;      // ต้นทุน (JPY)
+  total_selling: number;   // ราคาขาย (JPY)
+  total_payments: number;  // ยอดชำระรวม (THB) = deposit + next_payment
+  exchange_rate: number;   // อัตราแลกเปลี่ยนที่ใช้
 }
 
 interface AISettings {
@@ -186,7 +187,10 @@ export const AdminDashboard: React.FC = () => {
           const mappedQuotations: RecentQuotation[] = bookingsData.map((b: any) => {
             const cost = b.cost_price ?? 0;
             const selling = b.total_price ?? 0;
-            const totalPayments = paymentsByBooking[b.id] || 0;
+            const deposit = b.deposit_amount ?? 0;
+            const nextPayment = b.next_payment_amount ?? 0;
+            const totalPayments = (typeof deposit === 'number' ? deposit : 0) + (typeof nextPayment === 'number' ? nextPayment : 0);
+            const rate = b.exchange_rate ?? DEFAULT_EXCHANGE_RATE;
             return {
               id: b.id,
               customer_name: b.customer_name || '-',
@@ -195,6 +199,7 @@ export const AdminDashboard: React.FC = () => {
               total_cost: typeof cost === 'number' ? cost : 0,
               total_selling: typeof selling === 'number' ? selling : 0,
               total_payments: totalPayments,
+              exchange_rate: rate,
             };
           });
           setRecentQuotations(mappedQuotations.slice(0, 10));
@@ -620,71 +625,52 @@ export const AdminDashboard: React.FC = () => {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">วันที่</th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">ลูกค้า</th>
-                  <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">ต้นทุน (¥)</th>
-                  <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">ราคาขาย (¥)</th>
-                  <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">ยอดชำระ (฿)</th>
-                  <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">ยอดก่อน VAT</th>
-                  <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">จัดการ</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">วันที่</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">ลูกค้า</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">ต้นทุน (¥)</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">ราคาขาย (¥)</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">ยอดชำระ (฿)</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">ยอดก่อน VAT</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">รายรับสุทธิ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {recentQuotations.map((q) => (
-                  <tr key={q.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {formatDate(q.created_at)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="font-medium text-gray-900">{q.customer_name}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-blue-600 font-medium">
-                      {formatCurrencyJPY(q.total_cost)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600 font-bold">
-                      {formatCurrencyJPY(q.total_selling)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-amber-600 font-medium">
-                      ฿{q.total_payments.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-purple-600 font-medium">
-                      {(() => {
-                        const vat = Math.ceil(q.total_payments * 7 / 107);
-                        const beforeVat = q.total_payments - vat;
-                        return (
-                          <>
-                            ฿{beforeVat.toLocaleString()}
-                            <span className="text-xs text-gray-500 ml-1">({vat.toLocaleString()} VAT 7%)</span>
-                          </>
-                        );
-                      })()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <button
-                        onClick={() => deleteQuotation(q.id)}
-                        disabled={deletingId === q.id}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 hover:text-white hover:bg-red-500 rounded-md border border-red-200 hover:border-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {deletingId === q.id ? (
-                          <>
-                            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            กำลังลบ...
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                            ลบ
-                          </>
-                        )}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {recentQuotations.map((q) => {
+                  // คำนวณค่าต่างๆ
+                  const vat = Math.ceil(q.total_payments * 7 / 107);
+                  const beforeVat = q.total_payments - vat;
+                  const costTHB = q.total_cost * q.exchange_rate;
+                  const revenue = beforeVat - costTHB;
+                  
+                  return (
+                    <tr key={q.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {formatDate(q.created_at)}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <span className="font-medium text-gray-900">{q.customer_name}</span>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-right text-blue-600 font-medium">
+                        {formatCurrencyJPY(q.total_cost)}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-right text-purple-600 font-bold">
+                        {formatCurrencyJPY(q.total_selling)}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-right text-amber-600 font-medium">
+                        ฿{q.total_payments.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-right text-gray-700">
+                        ฿{beforeVat.toLocaleString()}
+                        <span className="text-xs text-gray-400 ml-1">({vat.toLocaleString()} VAT)</span>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-right font-bold">
+                        <span className={revenue >= 0 ? 'text-green-600' : 'text-red-600'}>
+                          ฿{Math.round(revenue).toLocaleString()}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
