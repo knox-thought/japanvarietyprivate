@@ -1608,8 +1608,18 @@ export const DataManager: React.FC = () => {
     }
   };
 
+  // Get currency symbol based on currency code
+  const getCurrencySymbol = (currency: string | undefined): string => {
+    switch (currency) {
+      case 'THB': return '฿';
+      case 'USD': return '$';
+      case 'JPY': 
+      default: return '¥';
+    }
+  };
+
   // Format cell value for display
-  const formatCellValue = (field: FieldConfig, value: any, asJsx: boolean = false) => {
+  const formatCellValue = (field: FieldConfig, value: any, asJsx: boolean = false, item?: any) => {
     if (value === null || value === undefined || value === '') return '-';
     
     if (field.type === 'select') {
@@ -1633,7 +1643,10 @@ export const DataManager: React.FC = () => {
     }
 
     if (field.type === 'number' && field.name.includes('price') || field.name.includes('amount') || field.name.includes('cost') || field.name.includes('selling') || field.name.includes('profit')) {
-      return `¥${Number(value).toLocaleString()}`;
+      // Use currency from item if available
+      const currency = item?.currency;
+      const symbol = getCurrencySymbol(currency);
+      return `${symbol}${Number(value).toLocaleString()}`;
     }
 
     if (field.type === 'image') {
@@ -1876,7 +1889,7 @@ export const DataManager: React.FC = () => {
                           isFullPayment ? "text-green-700 font-medium" : "text-gray-900"
                         )}
                       >
-                        {formatCellValue(field, item[field.name], field.name === 'booking_id')}
+                        {formatCellValue(field, item[field.name], field.name === 'booking_id', item)}
                       </td>
                     ))}
                     <td className="px-4 py-3">
@@ -2076,7 +2089,7 @@ export const DataManager: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {currentTable.fields.map(field => {
                     const value = detailItem[field.name];
-                    const displayValue = formatCellValue(field, value);
+                    const displayValue = formatCellValue(field, value, false, detailItem);
 
                     // Skip hidden fields in detail view only if they're empty
                     if (field.hidden && !value) return null;
