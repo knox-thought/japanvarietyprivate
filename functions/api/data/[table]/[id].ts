@@ -98,6 +98,14 @@ export const onRequestPut = async ({ request, env, params }: { request: Request;
     // Remove fields that shouldn't be updated
     delete data.id;
     delete data.created_at;
+    delete data.updated_at;
+
+    // Remove JOIN-derived fields for car_bookings table (these come from JOINs, not actual columns)
+    if (table === 'car_bookings') {
+      delete data.booking_code;
+      delete data.customer_name;
+      delete data.company_name;
+    }
 
     // Special handling for customers table: use line_display_name as fallback for name
     if (table === 'customers') {
