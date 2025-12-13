@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import { 
   MARKUP_VAT,
-  smartRoundUp,
-  roundUpTo100
+  smartRoundUp
 } from '../functions/lib/pricing';
 
 interface AddOn {
@@ -39,15 +38,17 @@ interface PriceEditModalProps {
 }
 
 // Calculate selling price with given margin
+// ใช้ smartRoundUp: ≥10000 ปัดขึ้น 000, <10000 ปัดขึ้น 00
 const calculateSellingWithMargin = (costPrice: number, marginPercent: number): number => {
   const withMarkup = costPrice * (1 + marginPercent / 100) * MARKUP_VAT;
   return smartRoundUp(withMarkup);
 };
 
 // Calculate add-on selling price with given margin
+// ใช้ smartRoundUp: ≥10000 ปัดขึ้น 000, <10000 ปัดขึ้น 00
 const calculateAddOnSellingWithMargin = (costPrice: number, marginPercent: number): number => {
   const withMarkup = costPrice * (1 + marginPercent / 100) * MARKUP_VAT;
-  return roundUpTo100(withMarkup);
+  return smartRoundUp(withMarkup);
 };
 
 export const PriceEditModal: React.FC<PriceEditModalProps> = ({

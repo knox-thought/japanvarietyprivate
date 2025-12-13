@@ -7,8 +7,6 @@ import {
   DEFAULT_MARGIN_PERCENT,
   DEFAULT_EXCHANGE_RATE,
   MARKUP_VAT, 
-  roundUpTo1000, 
-  roundUpTo100,
   smartRoundUp,
   getPricingInfo,
   convertJPYtoTHB
@@ -609,15 +607,17 @@ export const DataManager: React.FC = () => {
     console.log(`[Pricing] Using formula: ${pricingInfo.formula} (${marginPercent}% margin + 7% VAT) = ${dynamicMarkup.toFixed(4)}`);
 
     // Calculate selling price with dynamic margin
+    // ใช้ smartRoundUp: ≥10000 ปัดขึ้น 000, <10000 ปัดขึ้น 00
     const calculateSellingPrice = (costPrice: number): number => {
       const withMarkup = costPrice * dynamicMarkup;
-      return roundUpTo1000(withMarkup);
+      return smartRoundUp(withMarkup);
     };
     
     // Calculate add-on selling price with dynamic margin
+    // ใช้ smartRoundUp: ≥10000 ปัดขึ้น 000, <10000 ปัดขึ้น 00
     const calculateAddOnSellingPrice = (costPrice: number): number => {
       const withMarkup = costPrice * dynamicMarkup;
-      return roundUpTo100(withMarkup);
+      return smartRoundUp(withMarkup);
     };
 
     // Parse price expression like "75000+2000*2(3 Baby seat)" and calculate selling price

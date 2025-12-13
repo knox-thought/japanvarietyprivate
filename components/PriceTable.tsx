@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import clsx from 'clsx';
+import { smartRoundUp } from '../functions/lib/pricing';
 
 interface PriceSettings {
   markup: number;       // Default 37%
@@ -97,10 +98,11 @@ export const PriceTable: React.FC = () => {
   const [activeRegion, setActiveRegion] = useState<Region>('kanto');
 
   // Calculate selling price from cost
+  // ใช้ smartRoundUp: ≥10000 ปัดขึ้น 000, <10000 ปัดขึ้น 00
   const calculateSelling = (cost: number): number => {
     const withMarkup = cost * (1 + settings.markup / 100);
     const withVat = withMarkup * (1 + settings.vat / 100);
-    return Math.round(withVat / 1000) * 1000; // Round to nearest 1000
+    return smartRoundUp(withVat);
   };
 
   // Format currency
