@@ -86,6 +86,7 @@ export const QuotationProcessor: React.FC = () => {
   // Dynamic pricing inputs
   const [marginPercent, setMarginPercent] = useState<number>(DEFAULT_MARGIN_PERCENT);
   const [exchangeRate, setExchangeRate] = useState<number>(DEFAULT_EXCHANGE_RATE);
+  const [discountPercent, setDiscountPercent] = useState<number>(0);
 
   // Price edit modal state
   const [editingDayIndex, setEditingDayIndex] = useState<number | null>(null);
@@ -545,7 +546,7 @@ export const QuotationProcessor: React.FC = () => {
       </div>
 
       {/* Pricing Settings */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Margin % */}
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
           <label className="block text-sm font-bold text-gray-700 mb-2">
@@ -594,6 +595,31 @@ export const QuotationProcessor: React.FC = () => {
           </div>
           <p className="text-xs text-gray-500 mt-2">
             ตัวอย่าง: ¥100 × {exchangeRate} = {Math.round(100 * exchangeRate)} บาท
+          </p>
+        </div>
+
+        {/* Discount */}
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+          <label className="block text-sm font-bold text-gray-700 mb-2">
+            ส่วนลด (%)
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="0.1"
+              value={discountPercent}
+              onChange={(e) => {
+                const val = Math.min(100, Math.max(0, Number(e.target.value) || 0));
+                setDiscountPercent(val);
+              }}
+              className="flex-1 p-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:border-amber-500"
+            />
+            <span className="text-gray-600 font-medium">%</span>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            หักจากยอดบาทที่ลูกค้าจ่าย (0 = ไม่มีส่วนลด)
           </p>
         </div>
       </div>
@@ -860,26 +886,55 @@ Date:2026-02-21
                   </span>
                 </div>
                 
-                {/* 3. ราคาบาท (รวม VAT) */}
+                {/* 3. ราคาบาท และส่วนลด */}
                 {(() => {
-                  const sellingThb = Math.round(convertJPYtoTHB(displayTotalSelling, exchangeRate));
+                  const sellingThbFull = Math.round(convertJPYtoTHB(displayTotalSelling, exchangeRate));
                   const costThb = Math.round(convertJPYtoTHB(result.totalCost, exchangeRate));
-                  const thbBeforeVat = Math.round(sellingThb / 1.07);
-                  const vatAmount = sellingThb - thbBeforeVat;
-                  // กำไรหลังหัก VAT = (ขายเยน×เรท) - (ต้นทุนเยน×เรท) - VAT
-                  const profitAfterVat = sellingThb - costThb - vatAmount;
+                  
+                  // คำนวณส่วนลด
+                  const discountAmount = Math.round(sellingThbFull * discountPercent / 100);
+                  const sellingThbAfterDiscount = sellingThbFull - discountAmount;
+                  
+                  // ถอด VAT จากยอดหลังหักส่วนลด
+                  const thbBeforeVat = Math.round(sellingThbAfterDiscount / 1.07);
+                  const vatAmount = sellingThbAfterDiscount - thbBeforeVat;
+                  
+                  // กำไรหลังหัก VAT = ยอดชำระจริง - VAT - ต้นทุนบาท
+                  const profitAfterVat = sellingThbAfterDiscount - vatAmount - costThb;
+                  
                   return (
                     <>
+                      {/* ราคาบาท (ก่อนส่วนลด) */}
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">ยอดชำระ (บาท):</span>
+                        <span className="text-lg font-bold text-gray-700">
+                          {sellingThbFull.toLocaleString()} บาท
+                        </span>
+                      </div>
+
+                      {/* ส่วนลด (ถ้ามี) */}
+                      {discountPercent > 0 && (
+                        <div className="flex justify-between items-center text-sm bg-red-50 p-2 rounded-lg">
+                          <span className="text-red-600">ส่วนลด {discountPercent}%:</span>
+                          <span className="font-bold text-red-600">
+                            -{discountAmount.toLocaleString()} บาท
+                          </span>
+                        </div>
+                      )}
+
+                      {/* ยอดชำระจริง (หลังหักส่วนลด) */}
                       <div className="flex justify-between items-center bg-green-50 p-2 rounded-lg">
-                        <span className="text-sm font-medium text-gray-700">ราคาบาท:</span>
+                        <span className="text-sm font-medium text-gray-700">
+                          {discountPercent > 0 ? 'ยอดชำระจริง:' : 'ยอดชำระ:'}
+                        </span>
                         <span className="text-xl font-bold text-green-600">
-                          {sellingThb.toLocaleString()} บาท
+                          {sellingThbAfterDiscount.toLocaleString()} บาท
                         </span>
                       </div>
                       
-                      {/* 4. ราคาก่อน VAT (VAT ในวงเล็บ) */}
+                      {/* แยก VAT */}
                       <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-500">ก่อน VAT:</span>
+                        <span className="text-gray-500">แยก VAT:</span>
                         <span className="text-gray-700">
                           {thbBeforeVat.toLocaleString()} บาท <span className="text-amber-600">(VAT {vatAmount.toLocaleString()} บาท)</span>
                         </span>
