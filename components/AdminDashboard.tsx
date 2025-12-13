@@ -125,7 +125,7 @@ export const AdminDashboard: React.FC = () => {
         }, 0);
         
         // 3. รายรับหลังหักต้นทุน+VAT = SUM of profit for each booking
-        // สูตร: (ยอดขายบาท / 1.07) - (ต้นทุนเยน × exchange_rate)
+        // สูตรเดียวกับตาราง: (ยอดชำระ - VAT) - (ต้นทุนเยน × exchange_rate)
         totalRevenueTHB = bookings.reduce((sum: number, b: any) => {
           const deposit = b.deposit_amount ?? 0;
           const nextPayment = b.next_payment_amount ?? 0;
@@ -133,12 +133,13 @@ export const AdminDashboard: React.FC = () => {
           const costJPY = b.cost_price ?? 0;
           const rate = b.exchange_rate ?? DEFAULT_EXCHANGE_RATE;
           
-          // ยอดก่อน VAT = ยอดขายบาท / 1.07
-          const salesBeforeVAT = salesTHB / 1.07;
+          // ใช้สูตรเดียวกับตาราง
+          const vat = Math.ceil(salesTHB * 7 / 107);
+          const beforeVat = salesTHB - vat;
           // ต้นทุนบาท = ต้นทุนเยน × exchange_rate
           const costTHB = (typeof costJPY === 'number' ? costJPY : 0) * rate;
-          // กำไร = ยอดก่อน VAT - ต้นทุนบาท
-          const profit = salesBeforeVAT - costTHB;
+          // กำไร = ยอดก่อน VAT - ต้นทุนบาท (ปัดเศษแต่ละ booking ก่อนรวม)
+          const profit = Math.round(beforeVat - costTHB);
           
           return sum + profit;
         }, 0);
@@ -208,7 +209,7 @@ export const AdminDashboard: React.FC = () => {
       setStats({
         totalCostJPY,
         totalSalesTHB,
-        totalRevenueTHB: Math.round(totalRevenueTHB),
+        totalRevenueTHB, // แต่ละ booking ถูกปัดเศษแล้วก่อนรวม ดังนั้นไม่ต้องปัดอีก
         pendingPayments,
         overduePayments,
       });
