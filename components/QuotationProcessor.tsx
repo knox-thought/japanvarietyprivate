@@ -862,15 +862,18 @@ Date:2026-02-21
                 
                 {/* 3. ราคาบาท (รวม VAT) */}
                 {(() => {
-                  const thbTotal = Math.round(convertJPYtoTHB(displayTotalSelling, exchangeRate));
-                  const thbBeforeVat = Math.round(thbTotal / 1.07);
-                  const vatAmount = thbTotal - thbBeforeVat;
+                  const sellingThb = Math.round(convertJPYtoTHB(displayTotalSelling, exchangeRate));
+                  const costThb = Math.round(convertJPYtoTHB(result.totalCost, exchangeRate));
+                  const thbBeforeVat = Math.round(sellingThb / 1.07);
+                  const vatAmount = sellingThb - thbBeforeVat;
+                  // กำไรหลังหัก VAT = (ขายเยน×เรท) - (ต้นทุนเยน×เรท) - VAT
+                  const profitAfterVat = sellingThb - costThb - vatAmount;
                   return (
                     <>
                       <div className="flex justify-between items-center bg-green-50 p-2 rounded-lg">
                         <span className="text-sm font-medium text-gray-700">ราคาบาท:</span>
                         <span className="text-xl font-bold text-green-600">
-                          {thbTotal.toLocaleString()} บาท
+                          {sellingThb.toLocaleString()} บาท
                         </span>
                       </div>
                       
@@ -881,17 +884,17 @@ Date:2026-02-21
                           {thbBeforeVat.toLocaleString()} บาท <span className="text-amber-600">(VAT {vatAmount.toLocaleString()} บาท)</span>
                         </span>
                       </div>
+
+                      {/* กำไรหลังหัก VAT */}
+                      <div className="flex justify-between items-center text-sm pt-2 border-t border-gray-100">
+                        <span className="text-gray-500">กำไรหลังหัก VAT:</span>
+                        <span className="font-bold text-green-600">
+                          {profitAfterVat.toLocaleString()} บาท
+                        </span>
+                      </div>
                     </>
                   );
                 })()}
-
-                {/* กำไร */}
-                <div className="flex justify-between items-center text-sm pt-2 border-t border-gray-100">
-                  <span className="text-gray-500">กำไร:</span>
-                  <span className="font-medium text-green-600">
-                    {formatPrice(displayTotalSelling - result.totalCost, '¥')} ({Math.round((displayTotalSelling - result.totalCost) / result.totalCost * 100)}%)
-                  </span>
-                </div>
               </div>
 
               {/* Save to Quotation History Button */}

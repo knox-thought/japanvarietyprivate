@@ -1418,14 +1418,17 @@ export const DataManager: React.FC = () => {
                     
                     {/* 3. ราคาบาท (รวม VAT) */}
                     {(() => {
-                      const thbTotal = Math.round(convertJPYtoTHB(totalSelling, exchangeRate));
-                      const thbBeforeVat = Math.round(thbTotal / 1.07);
-                      const vatAmount = thbTotal - thbBeforeVat;
+                      const sellingThb = Math.round(convertJPYtoTHB(totalSelling, exchangeRate));
+                      const costThb = Math.round(convertJPYtoTHB(totalCost, exchangeRate));
+                      const thbBeforeVat = Math.round(sellingThb / 1.07);
+                      const vatAmount = sellingThb - thbBeforeVat;
+                      // กำไรหลังหัก VAT = (ขายเยน×เรท) - (ต้นทุนเยน×เรท) - VAT
+                      const profitAfterVat = sellingThb - costThb - vatAmount;
                       return (
                         <>
                           <div className="flex justify-between items-center bg-green-100 p-1.5 rounded">
                             <span className="text-sm font-medium text-gray-700">ราคาบาท:</span>
-                            <span className="text-lg font-bold text-green-600">{thbTotal.toLocaleString()} บาท</span>
+                            <span className="text-lg font-bold text-green-600">{sellingThb.toLocaleString()} บาท</span>
                           </div>
                           
                           {/* 4. ราคาก่อน VAT (VAT ในวงเล็บ) */}
@@ -1435,17 +1438,17 @@ export const DataManager: React.FC = () => {
                               {thbBeforeVat.toLocaleString()} บาท <span className="text-amber-600">(VAT {vatAmount.toLocaleString()} บาท)</span>
                             </span>
                           </div>
+
+                          {/* กำไรหลังหัก VAT */}
+                          <div className="flex justify-between items-center text-xs pt-1 border-t border-amber-100">
+                            <span className="text-gray-500">กำไรหลังหัก VAT:</span>
+                            <span className="text-green-600 font-bold">
+                              {profitAfterVat.toLocaleString()} บาท
+                            </span>
+                          </div>
                         </>
                       );
                     })()}
-
-                    {/* กำไร */}
-                    <div className="flex justify-between items-center text-xs text-gray-500 pt-1 border-t border-amber-100">
-                      <span>กำไร:</span>
-                      <span className="text-green-600 font-medium">
-                        ¥{(totalSelling - totalCost).toLocaleString()} ({Math.round((totalSelling - totalCost) / totalCost * 100)}%)
-                      </span>
-                    </div>
                   </div>
                 </div>
                 
