@@ -2,15 +2,41 @@ import React, { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import { ImageUpload } from './ImageUpload';
 import { CarBookingCalendar } from './CarBookingCalendar';
+import { PriceEditModal } from './PriceEditModal';
 import { 
   DEFAULT_MARGIN_PERCENT,
   DEFAULT_EXCHANGE_RATE,
   MARKUP_VAT, 
   roundUpTo1000, 
   roundUpTo100,
+  smartRoundUp,
   getPricingInfo,
   convertJPYtoTHB
 } from '../functions/lib/pricing';
+
+// Interfaces for processed quotation data
+interface ProcessedAddOn {
+  unitPrice: number;
+  quantity: number;
+  description: string;
+  unitSellingPrice?: number;
+  sellingPrice?: number;
+  customMarginPercent?: number;
+}
+
+interface ProcessedDay {
+  date: string;
+  vehicle: string;
+  serviceType: string;
+  route: string;
+  baseCostPrice: number;
+  baseSellingPrice: number;
+  addOns: ProcessedAddOn[];
+  totalCostPrice: number;
+  totalSellingPrice: number;
+  currency: string;
+  customMarginPercent?: number;
+}
 
 type TableName = 'customers' | 'car_companies' | 'bookings' | 'car_bookings' | 'payments' | 'notifications' | 'quotations' | 'users';
 
@@ -298,6 +324,10 @@ export const DataManager: React.FC = () => {
   const [marginPercent, setMarginPercent] = useState<number>(DEFAULT_MARGIN_PERCENT);
   const [exchangeRate, setExchangeRate] = useState<number>(DEFAULT_EXCHANGE_RATE);
   const [isCalculating, setIsCalculating] = useState(false);
+  
+  // State for processed quotation data (for price editing)
+  const [processedDays, setProcessedDays] = useState<ProcessedDay[]>([]);
+  const [editingDayIndex, setEditingDayIndex] = useState<number | null>(null);
 
   const currentTable = TABLES.find(t => t.name === activeTable)!;
 
@@ -424,6 +454,8 @@ export const DataManager: React.FC = () => {
   const openCreateForm = async () => {
     setEditingItem(null);
     setFormData({});
+    setProcessedDays([]); // Clear processed days
+    setEditingDayIndex(null);
     await fetchRelatedData();
     setIsFormOpen(true);
   };
@@ -431,6 +463,8 @@ export const DataManager: React.FC = () => {
   const openEditForm = async (item: any) => {
     setEditingItem(item);
     setFormData({ ...item });
+    setProcessedDays([]); // Clear processed days
+    setEditingDayIndex(null);
     await fetchRelatedData();
     setIsFormOpen(true);
   };
@@ -439,6 +473,8 @@ export const DataManager: React.FC = () => {
     setIsFormOpen(false);
     setEditingItem(null);
     setFormData({});
+    setProcessedDays([]); // Clear processed days when form closes
+    setEditingDayIndex(null);
   };
 
   const handleInputChange = async (field: string, value: any) => {
@@ -482,8 +518,83 @@ export const DataManager: React.FC = () => {
     }
     
     setIsCalculating(true);
+    // Reset processed days before new calculation
+    setProcessedDays([]);
     await processQuotationCost(formData.cost_quotation, formData.route_quotation || '', formData);
     setIsCalculating(false);
+  };
+
+  // Handle day update from modal
+  const handleDayUpdate = (dayIndex: number, updatedDay: ProcessedDay) => {
+    const newDays = [...processedDays];
+    newDays[dayIndex] = updatedDay;
+    setProcessedDays(newDays);
+    
+    // Regenerate route_quotation text based on updated days
+    const totalSelling = newDays.reduce((sum, day) => sum + day.totalSellingPrice, 0);
+    const outputText = generateRouteQuotationFromDays(newDays, totalSelling);
+    
+    setFormData(prev => ({
+      ...prev,
+      route_quotation: outputText,
+      total_price: totalSelling
+    }));
+    
+    const thbAmount = convertJPYtoTHB(totalSelling, exchangeRate);
+    showSuccess(`✅ อัพเดทราคาขายสำเร็จ (รวม: ¥${totalSelling.toLocaleString()} = ${Math.round(thbAmount).toLocaleString()} บาท)`);
+  };
+
+  // Generate route quotation text from processed days
+  const generateRouteQuotationFromDays = (days: ProcessedDay[], totalSelling: number): string => {
+    let output = '';
+    const dayTotals: number[] = [];
+    
+    days.forEach(day => {
+      output += `${day.date}\n`;
+      output += `${day.vehicle} • ${day.serviceType}\n`;
+      if (day.route) output += `${day.route}\n`;
+      
+      // Build price string
+      let priceStr = `¥${day.baseSellingPrice.toLocaleString()}`;
+      if ((day as any).customMarginPercent !== undefined && (day as any).customMarginPercent !== marginPercent) {
+        priceStr += ` [${(day as any).customMarginPercent}%]`;
+      }
+      
+      if (day.addOns && day.addOns.length > 0) {
+        day.addOns.forEach(addon => {
+          const unitSelling = addon.unitSellingPrice || 0;
+          const quantity = addon.quantity || 1;
+          if (quantity > 1) {
+            priceStr += `+${unitSelling.toLocaleString()}*${quantity}(${addon.description})`;
+          } else {
+            priceStr += `+${unitSelling.toLocaleString()}(${addon.description})`;
+          }
+          if ((addon as any).customMarginPercent !== undefined && (addon as any).customMarginPercent !== marginPercent) {
+            priceStr += ` [${(addon as any).customMarginPercent}%]`;
+          }
+        });
+      }
+      
+      output += `${priceStr}\n`;
+      if (day.addOns && day.addOns.length > 0) {
+        output += `รวมวันนี้: ¥${day.totalSellingPrice.toLocaleString()}\n`;
+      }
+      output += '\n';
+      
+      dayTotals.push(day.totalSellingPrice);
+    });
+    
+    // Add total
+    output += `────────────────\n`;
+    if (dayTotals.length > 1) {
+      output += `${dayTotals.map(t => t.toLocaleString()).join('+')} = ¥${totalSelling.toLocaleString()}\n`;
+    } else {
+      output += `รวม: ¥${totalSelling.toLocaleString()}\n`;
+    }
+    const thbTotal = convertJPYtoTHB(totalSelling, exchangeRate);
+    output += `${Math.round(thbTotal).toLocaleString()} บาท\n`;
+    
+    return output;
   };
 
   // Generate output text similar to QuotationProcessor Output 1 (selling price breakdown)
@@ -828,6 +939,28 @@ export const DataManager: React.FC = () => {
         console.error('[DEBUG] Generated output is empty', { hasOperatorResponse: !!operatorResponse, hasDays: !!data.days, daysCount: data.days?.length });
         setError('ไม่สามารถสร้าง Quotation เส้นทางได้ กรุณาตรวจสอบข้อมูลที่กรอก');
         return;
+      }
+
+      // Store processed days for price editing
+      if (data.days && Array.isArray(data.days)) {
+        setProcessedDays(data.days.map((day: any) => ({
+          date: day.date || '',
+          vehicle: day.vehicle || '',
+          serviceType: day.serviceType || '',
+          route: day.route || '',
+          baseCostPrice: day.baseCostPrice || day.costPrice || 0,
+          baseSellingPrice: day.baseSellingPrice || 0,
+          addOns: (day.addOns || []).map((addon: any) => ({
+            unitPrice: addon.unitPrice || addon.amount || 0,
+            quantity: addon.quantity || 1,
+            description: addon.description || '',
+            unitSellingPrice: addon.unitSellingPrice || 0,
+            sellingPrice: addon.sellingPrice || 0
+          })),
+          totalCostPrice: day.totalCostPrice || 0,
+          totalSellingPrice: day.totalSellingPrice || 0,
+          currency: day.currency || '¥'
+        })));
       }
 
       // Update form data: fill route_quotation with output text and store cost_price
@@ -1211,6 +1344,98 @@ export const DataManager: React.FC = () => {
         } else if (field.name === 'route_quotation') {
           rows = 15; // Larger textarea for route quotation
           fontFamily = 'monospace';
+          
+          // Show interactive price editor if we have processed days
+          if (processedDays.length > 0) {
+            const totalSelling = processedDays.reduce((sum, day) => sum + day.totalSellingPrice, 0);
+            const totalCost = processedDays.reduce((sum, day) => sum + day.totalCostPrice, 0);
+            
+            return (
+              <div className="space-y-3">
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-bold text-amber-800 flex items-center gap-1">
+                      📊 ราคาขาย (คลิกที่ราคาเพื่อปรับ % กำไร)
+                    </span>
+                    <span className="text-xs text-amber-600">
+                      สูตร: ×{(1 + marginPercent/100).toFixed(2)}×1.07 (VAT 7%)
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {processedDays.map((day, idx) => (
+                      <div 
+                        key={idx}
+                        className="bg-white p-2 rounded border border-amber-100 cursor-pointer hover:bg-amber-100 hover:border-amber-300 transition-colors group"
+                        onClick={() => setEditingDayIndex(idx)}
+                        title="คลิกเพื่อปรับ % กำไร"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs font-medium text-gray-700">{day.date}</div>
+                          <span className="text-xs text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                            ✏️ ปรับ %
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500">{day.vehicle} • {day.serviceType}</div>
+                        <div className="text-sm font-bold text-amber-600 mt-1">
+                          ¥{day.baseSellingPrice.toLocaleString()}
+                          {(day as any).customMarginPercent !== undefined && (day as any).customMarginPercent !== marginPercent && (
+                            <span className="text-xs font-normal text-green-600 ml-1 bg-green-100 px-1 py-0.5 rounded">
+                              {(day as any).customMarginPercent}%
+                            </span>
+                          )}
+                          {day.addOns && day.addOns.length > 0 && (
+                            <span className="text-xs font-normal text-gray-500 ml-1">
+                              {day.addOns.map((addon, i) => (
+                                <span key={i}>
+                                  +{(addon.unitSellingPrice || 0).toLocaleString()}
+                                  {addon.quantity > 1 ? `×${addon.quantity}` : ''}
+                                  ({addon.description})
+                                </span>
+                              ))}
+                            </span>
+                          )}
+                          <span className="text-xs font-normal text-gray-400 ml-2">
+                            รวม: ¥{day.totalSellingPrice.toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="mt-3 pt-2 border-t border-amber-200">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-gray-700">รวมทั้งหมด:</span>
+                      <div className="text-right">
+                        <span className="text-lg font-bold text-amber-600">¥{totalSelling.toLocaleString()}</span>
+                        <span className="text-sm text-blue-600 ml-2">
+                          ({Math.round(convertJPYtoTHB(totalSelling, exchangeRate)).toLocaleString()} บาท)
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center text-xs text-gray-500 mt-1">
+                      <span>กำไร:</span>
+                      <span className="text-green-600 font-medium">
+                        ¥{(totalSelling - totalCost).toLocaleString()} ({Math.round((totalSelling - totalCost) / totalCost * 100)}%)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                <details className="text-xs">
+                  <summary className="text-gray-500 cursor-pointer hover:text-gray-700">ดู/แก้ไข Text Output</summary>
+                  <textarea
+                    value={value}
+                    onChange={(e) => handleInputChange(field.name, e.target.value)}
+                    placeholder={field.placeholder}
+                    rows={rows}
+                    className={`${baseClasses} mt-2`}
+                    style={{ fontFamily }}
+                  />
+                </details>
+              </div>
+            );
+          }
         }
         return (
           <textarea
@@ -1901,6 +2126,18 @@ export const DataManager: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Price Edit Modal for Booking Quotation */}
+      {editingDayIndex !== null && processedDays[editingDayIndex] && (
+        <PriceEditModal
+          isOpen={editingDayIndex !== null}
+          onClose={() => setEditingDayIndex(null)}
+          day={processedDays[editingDayIndex]}
+          dayIndex={editingDayIndex}
+          defaultMarginPercent={marginPercent}
+          onUpdate={handleDayUpdate}
+        />
       )}
     </div>
   );

@@ -9,6 +9,7 @@ import {
   convertJPYtoTHB,
   formatPriceWithTHB
 } from '../functions/lib/pricing';
+import { PriceEditModal } from './PriceEditModal';
 
 interface AddOn {
   amount?: number;
@@ -86,8 +87,32 @@ export const QuotationProcessor: React.FC = () => {
   const [marginPercent, setMarginPercent] = useState<number>(DEFAULT_MARGIN_PERCENT);
   const [exchangeRate, setExchangeRate] = useState<number>(DEFAULT_EXCHANGE_RATE);
 
+  // Price edit modal state
+  const [editingDayIndex, setEditingDayIndex] = useState<number | null>(null);
+  const [customizedDays, setCustomizedDays] = useState<ProcessedDay[]>([]);
+
   // Get pricing info based on current margin
   const pricingInfo = getPricingInfo(marginPercent);
+
+  // Use customized days if available, otherwise use original result
+  const displayDays = result ? (customizedDays.length > 0 ? customizedDays : result.days) : [];
+  const displayTotalSelling = displayDays.reduce((sum, day) => sum + day.totalSellingPrice, 0);
+
+  // Reset customized days when result changes
+  useEffect(() => {
+    if (result) {
+      setCustomizedDays([...result.days]);
+    } else {
+      setCustomizedDays([]);
+    }
+  }, [result]);
+
+  // Handle day update from modal
+  const handleDayUpdate = (dayIndex: number, updatedDay: ProcessedDay) => {
+    const newDays = [...customizedDays];
+    newDays[dayIndex] = updatedDay;
+    setCustomizedDays(newDays);
+  };
 
   // Fetch saved quotations
   const fetchQuotations = async () => {
@@ -256,8 +281,8 @@ export const QuotationProcessor: React.FC = () => {
           customerName: result.customerName,
           operatorName: operatorName || null,
           totalCost: result.totalCost,
-          totalSelling: result.totalSelling,
-          days: result.days,
+          totalSelling: displayTotalSelling, // Use customized total
+          days: displayDays, // Use customized days
           notes: result.notes,
           ourQuotationText: input1,
           operatorResponseText: input2
@@ -332,7 +357,8 @@ export const QuotationProcessor: React.FC = () => {
       }
     } else {
       // Output 2: ราคาขาย (+37%+7% ปัดขึ้น) - แสดง add-ons แยก
-      result.days.forEach(day => {
+      // Use customized days (displayDays) for selling price output
+      displayDays.forEach(day => {
         output += `${day.date}\n`;
         output += `${day.vehicle} • ${day.serviceType}\n`;
         output += `${day.route}\n`;
@@ -357,8 +383,8 @@ export const QuotationProcessor: React.FC = () => {
       });
 
       output += `────────────────\n`;
-      output += `รวมราคาขาย: ${formatPrice(result.totalSelling, '¥')}\n`;
-      output += `${Math.round(convertJPYtoTHB(result.totalSelling, exchangeRate)).toLocaleString()} บาท\n`;
+      output += `รวมราคาขาย: ${formatPrice(displayTotalSelling, '¥')}\n`;
+      output += `${Math.round(convertJPYtoTHB(displayTotalSelling, exchangeRate)).toLocaleString()} บาท\n`;
     }
 
     if (result.notes.length > 0) {
@@ -746,7 +772,7 @@ Date:2026-02-21
                 <h2 className="font-bold text-amber-800">
                   Output 2: ราคาขาย (+{pricingInfo.marginPercent}%+{pricingInfo.vatPercent}% ปัดขึ้น)
                 </h2>
-                <p className="text-xs text-amber-600">ต้นทุน {pricingInfo.formula} → ปัดขึ้น (หลักหมื่น=000, หลักพัน=00)</p>
+                <p className="text-xs text-amber-600">ต้นทุน {pricingInfo.formula} → ปัดขึ้น (หลักหมื่น=000, หลักพัน=00) | <span className="text-amber-700 font-medium">คลิกที่ราคาเพื่อปรับ % กำไรรายตัว</span></p>
               </div>
               <button
                 onClick={() => copyToClipboard('selling')}
@@ -764,13 +790,31 @@ Date:2026-02-21
             <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
               <div className="font-bold text-lg text-gray-900">{result.customerName}</div>
               
-              {result.days.map((day, idx) => (
-                <div key={idx} className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                  <div className="text-sm font-bold text-gray-900">{day.date}</div>
+              {displayDays.map((day, idx) => (
+                <div 
+                  key={idx} 
+                  className="bg-gray-50 p-3 rounded-lg border border-gray-100 cursor-pointer hover:bg-amber-50 hover:border-amber-200 transition-colors group"
+                  onClick={() => setEditingDayIndex(idx)}
+                  title="คลิกเพื่อปรับ % กำไร"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-bold text-gray-900">{day.date}</div>
+                    <span className="text-xs text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      ปรับ %
+                    </span>
+                  </div>
                   <div className="text-xs text-gray-600">{day.vehicle} • {day.serviceType}</div>
                   <div className="text-xs text-gray-500 mt-1">{day.route}</div>
                   <div className="text-lg font-bold text-amber-600 mt-2">
                     {formatPrice(day.baseSellingPrice, day.currency)}
+                    {(day as any).customMarginPercent !== undefined && (day as any).customMarginPercent !== marginPercent && (
+                      <span className="text-xs font-normal text-green-600 ml-1 bg-green-100 px-1.5 py-0.5 rounded">
+                        {(day as any).customMarginPercent}%
+                      </span>
+                    )}
                     {day.addOns && day.addOns.length > 0 && (
                       <span className="text-sm font-normal text-gray-600 ml-1">
                         {day.addOns.map((addon, i) => {
@@ -779,6 +823,11 @@ Date:2026-02-21
                           return (
                             <span key={i}>
                               +{unitSellingPrice.toLocaleString()}{quantity > 1 ? `*${quantity}` : ''}({addon.description})
+                              {(addon as any).customMarginPercent !== undefined && (addon as any).customMarginPercent !== marginPercent && (
+                                <span className="text-xs text-green-600 bg-green-100 px-1 py-0.5 rounded ml-0.5">
+                                  {(addon as any).customMarginPercent}%
+                                </span>
+                              )}
                             </span>
                           );
                         })}
@@ -799,10 +848,10 @@ Date:2026-02-21
                   <span className="font-bold text-gray-900">รวมราคาขาย:</span>
                   <div className="text-right">
                     <span className="text-xl font-bold text-amber-600">
-                      {formatPrice(result.totalSelling, '¥')}
+                      {formatPrice(displayTotalSelling, '¥')}
                     </span>
                     <div className="text-sm text-blue-600 font-medium">
-                      {Math.round(convertJPYtoTHB(result.totalSelling, exchangeRate)).toLocaleString()} บาท
+                      {Math.round(convertJPYtoTHB(displayTotalSelling, exchangeRate)).toLocaleString()} บาท
                     </div>
                   </div>
                 </div>
@@ -810,10 +859,10 @@ Date:2026-02-21
                   <span>กำไร:</span>
                   <div className="text-right">
                     <span className="font-medium text-green-600">
-                      {formatPrice(result.totalSelling - result.totalCost, '¥')} ({Math.round((result.totalSelling - result.totalCost) / result.totalCost * 100)}%)
+                      {formatPrice(displayTotalSelling - result.totalCost, '¥')} ({Math.round((displayTotalSelling - result.totalCost) / result.totalCost * 100)}%)
                     </span>
                     <div className="text-xs text-green-500">
-                      {Math.round(convertJPYtoTHB(result.totalSelling - result.totalCost, exchangeRate)).toLocaleString()} บาท
+                      {Math.round(convertJPYtoTHB(displayTotalSelling - result.totalCost, exchangeRate)).toLocaleString()} บาท
                     </div>
                   </div>
                 </div>
@@ -833,8 +882,8 @@ Date:2026-02-21
                         customerName: result.customerName,
                         operatorName: operatorName || null,
                         totalCost: result.totalCost,
-                        totalSelling: result.totalSelling,
-                        days: result.days,
+                        totalSelling: displayTotalSelling, // Use customized total
+                        days: displayDays, // Use customized days
                         notes: result.notes,
                         ourQuotationText: input1 || '',
                         operatorResponseText: input2,
@@ -879,6 +928,18 @@ Date:2026-02-21
               </button>
             </div>
           </div>
+
+          {/* Price Edit Modal */}
+          {editingDayIndex !== null && displayDays[editingDayIndex] && (
+            <PriceEditModal
+              isOpen={editingDayIndex !== null}
+              onClose={() => setEditingDayIndex(null)}
+              day={displayDays[editingDayIndex] as any}
+              dayIndex={editingDayIndex}
+              defaultMarginPercent={marginPercent}
+              onUpdate={handleDayUpdate as any}
+            />
+          )}
         </div>
       )}
 
