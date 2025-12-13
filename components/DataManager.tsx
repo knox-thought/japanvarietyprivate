@@ -336,8 +336,8 @@ export const DataManager: React.FC = () => {
     fetchRelatedDataForTable();
   }, [activeTable]);
 
-  const fetchData = async () => {
-    setIsLoading(true);
+  const fetchData = async (silent: boolean = false) => {
+    if (!silent) setIsLoading(true);
     setError(null);
     try {
       const response = await fetch(`/api/data/${activeTable}`);
@@ -348,7 +348,7 @@ export const DataManager: React.FC = () => {
       setError('ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่');
       console.error(err);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
@@ -1155,7 +1155,7 @@ export const DataManager: React.FC = () => {
       showSuccess(successMsg);
 
       closeForm();
-      fetchData();
+      fetchData(true); // Silent refresh - no loading flicker
     } catch (err) {
       setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการบันทึก');
     } finally {
@@ -1181,7 +1181,7 @@ export const DataManager: React.FC = () => {
       }
 
       showSuccess('ลบข้อมูลสำเร็จ!');
-      fetchData();
+      fetchData(true); // Silent refresh - no loading flicker
     } catch (err) {
       setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการลบ');
     } finally {

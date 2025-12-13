@@ -107,6 +107,14 @@ export const onRequestPut = async ({ request, env, params }: { request: Request;
       delete data.company_name;
     }
 
+    // Convert empty string to null for foreign key fields (relation fields)
+    const foreignKeyFields = ['customer_id', 'car_company_id', 'booking_id', 'quotation_id'];
+    foreignKeyFields.forEach(field => {
+      if (data.hasOwnProperty(field) && (data[field] === '' || data[field] === null)) {
+        data[field] = null;
+      }
+    });
+
     // Special handling for customers table: use line_display_name as fallback for name
     if (table === 'customers') {
       // If name is being updated and is empty/null/undefined, use line_display_name as fallback
