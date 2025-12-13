@@ -135,14 +135,10 @@ const TABLES: TableConfig[] = [
       { name: 'pax_toddlers', label: 'เด็กเล็ก 0-6', type: 'number', placeholder: '0' },
       { name: 'luggage_large', label: 'กระเป๋าใหญ่', type: 'number', placeholder: '0' },
       { name: 'luggage_small', label: 'กระเป๋าเล็ก', type: 'number', placeholder: '0' },
-      { name: 'total_price', label: 'ราคารวม', type: 'number', placeholder: '0' },
-      { name: 'currency', label: 'สกุลเงิน', type: 'select', options: [
-        { value: 'THB', label: 'THB (บาท)' },
-        { value: 'JPY', label: 'JPY (เยน)' },
-        { value: 'USD', label: 'USD (ดอลลาร์)' },
-      ]},
-      { name: 'deposit_amount', label: 'ชำระเต็ม/มัดจำ', type: 'number', placeholder: '0' },
-      { name: 'next_payment_amount', label: 'ยอดชำระถัดไป', type: 'number', placeholder: '0' },
+      { name: 'total_price', label: 'ราคารวม (¥)', type: 'number', placeholder: '0' },
+      { name: 'exchange_rate', label: 'อัตราแลกเปลี่ยน (THB/¥)', type: 'number', placeholder: '0.21' },
+      { name: 'deposit_amount', label: 'ชำระเต็ม/มัดจำ (฿)', type: 'number', placeholder: '0' },
+      { name: 'next_payment_amount', label: 'ยอดชำระถัดไป (฿)', type: 'number', placeholder: '0' },
       { name: 'status', label: 'สถานะ', type: 'select', options: [
         { value: 'inquiry', label: '💬 สอบถาม' },
         { value: 'pending', label: '⏳ รอดำเนินการ' },
@@ -154,7 +150,7 @@ const TABLES: TableConfig[] = [
       ]},
       { name: 'cost_quotation', label: 'Quotation ต้นทุนจาก Operator (สำหรับคำนวณราคาขาย)', type: 'textarea', placeholder: 'เช่น Date:2026-02-15\n🚌Coaster\n👛180000yen+15000(Accommodation driver)+2000(Baby seat)\n\nระบบจะคำนวณราคาขาย (30% + VAT) แจกแจงรายละเอียดอัตโนมัติไปใส่ที่ฟิลด์ "Quotation เส้นทาง" ด้านล่าง' },
       { name: 'route_quotation', label: 'Quotation เส้นทาง (จะถูกเติมอัตโนมัติเมื่อกรอก Quotation ต้นทุนด้านบน)', type: 'textarea', placeholder: 'รายละเอียดเส้นทางพร้อมราคาแจกแจง (จะถูกเติมอัตโนมัติ)...' },
-      { name: 'cost_price', label: 'ราคาต้นทุน (Cost Price)', type: 'number', placeholder: '0', hidden: true },
+      { name: 'cost_price', label: 'ต้นทุน (¥)', type: 'number', placeholder: '0' },
       { name: 'notes', label: 'หมายเหตุ', type: 'textarea' },
     ],
   },
@@ -977,16 +973,31 @@ export const DataManager: React.FC = () => {
         })));
       }
 
-      // Update form data: fill route_quotation with output text and store cost_price
+      // Calculate THB amounts
+      const thbAmount = convertJPYtoTHB(calculatedTotalPrice, exchangeRate);
+      const thbRounded = Math.round(thbAmount);
+      
+      // Build summary for notes
+      let pricingSummary = `\n────────────────\n📊 สรุปราคา:\n`;
+      pricingSummary += `• Margin: ${marginPercent}%\n`;
+      if (discountPercent > 0) {
+        pricingSummary += `• ส่วนลด: ${discountPercent}%\n`;
+      }
+      pricingSummary += `• Exchange Rate: ${exchangeRate} THB/¥\n`;
+      pricingSummary += `• ต้นทุน: ¥${totalCostPrice.toLocaleString()}\n`;
+      pricingSummary += `• ราคาขาย: ¥${calculatedTotalPrice.toLocaleString()} = ฿${thbRounded.toLocaleString()}`;
+      
+      // Update form data: fill route_quotation, cost_price, total_price, exchange_rate, and notes
       setFormData(prev => ({
         ...prev,
         route_quotation: outputText,
         cost_price: totalCostPrice,
-        total_price: calculatedTotalPrice // Use calculated total from generateSellingPriceOutput
+        total_price: calculatedTotalPrice,
+        exchange_rate: exchangeRate,
+        notes: (prev.notes || '') + pricingSummary
       }));
 
-      const thbAmount = convertJPYtoTHB(calculatedTotalPrice, exchangeRate);
-      showSuccess(`✅ คำนวณราคาขายสำเร็จ (รวม: ¥${calculatedTotalPrice.toLocaleString()} = ${Math.round(thbAmount).toLocaleString()} บาท)`);
+      showSuccess(`✅ คำนวณราคาขายสำเร็จ (รวม: ¥${calculatedTotalPrice.toLocaleString()} = ${thbRounded.toLocaleString()} บาท)`);
     } catch (err) {
       console.error('Failed to process quotation cost:', err);
       setError(`ไม่สามารถคำนวณราคาขายได้: ${err instanceof Error ? err.message : 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'}`);

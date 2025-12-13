@@ -3,8 +3,8 @@ import { DEFAULT_EXCHANGE_RATE } from '../functions/lib/pricing';
 
 interface DashboardStat {
   totalCostJPY: number;         // 1. ยอดเยนต้นทุน (cost_price)
-  totalSellingJPY: number;      // 2. ยอดเยนราคาขาย (total_price)
-  totalSalesTHB: number;        // 3. ยอดขายรวม (deposit_amount THB)
+  totalSalesTHB: number;        // 2. ยอดขายรวม (บาท) = deposit_amount + next_payment_amount
+  totalRevenueTHB: number;      // 3. รายรับ(บาท) หลังหักต้นทุน+VAT
   pendingPayments: number;      // 4. ค้างชำระยังไม่เกินกำหนด
   overduePayments: number;      // 5. ค้างชำระเกินกำหนด
 }
@@ -29,8 +29,8 @@ interface AISettings {
 export const AdminDashboard: React.FC = () => {
   const [stats, setStats] = useState<DashboardStat>({
     totalCostJPY: 0,       // ยอดเยนต้นทุน
-    totalSellingJPY: 0,    // ยอดเยนราคาขาย
-    totalSalesTHB: 0,      // ยอดขายรวม (THB)
+    totalSalesTHB: 0,      // ยอดขายรวม (บาท)
+    totalRevenueTHB: 0,    // รายรับหลังหักต้นทุน+VAT (บาท)
     pendingPayments: 0,    // ค้างชำระยังไม่เกินกำหนด
     overduePayments: 0,    // ค้างชำระเกินกำหนด
   });
@@ -102,8 +102,8 @@ export const AdminDashboard: React.FC = () => {
       ]);
       
       let totalCostJPY = 0;
-      let totalSellingJPY = 0;
       let totalSalesTHB = 0;
+      let totalRevenueTHB = 0;
       let pendingPayments = 0;
       let overduePayments = 0;
       
@@ -111,16 +111,36 @@ export const AdminDashboard: React.FC = () => {
         const data = await bookingsRes.json();
         const bookings = (data.success && data.data) ? data.data : [];
         
-        // 1. ยอดเยนต้นทุน = cost_price (JPY)
+        // 1. ยอดเยนต้นทุน = SUM of cost_price (JPY) from all bookings
         totalCostJPY = bookings.reduce((sum: number, b: any) => {
           const cost = b.cost_price ?? 0;
           return sum + (typeof cost === 'number' ? cost : 0);
         }, 0);
         
-        // 2. ยอดเยนราคาขาย = total_price (JPY)
-        totalSellingJPY = bookings.reduce((sum: number, b: any) => {
-          const price = b.total_price ?? 0;
-          return sum + (typeof price === 'number' ? price : 0);
+        // 2. ยอดขายรวม (บาท) = SUM of (deposit_amount + next_payment_amount) from all bookings
+        totalSalesTHB = bookings.reduce((sum: number, b: any) => {
+          const deposit = b.deposit_amount ?? 0;
+          const nextPayment = b.next_payment_amount ?? 0;
+          return sum + (typeof deposit === 'number' ? deposit : 0) + (typeof nextPayment === 'number' ? nextPayment : 0);
+        }, 0);
+        
+        // 3. รายรับหลังหักต้นทุน+VAT = SUM of profit for each booking
+        // สูตร: (ยอดขายบาท / 1.07) - (ต้นทุนเยน × exchange_rate)
+        totalRevenueTHB = bookings.reduce((sum: number, b: any) => {
+          const deposit = b.deposit_amount ?? 0;
+          const nextPayment = b.next_payment_amount ?? 0;
+          const salesTHB = (typeof deposit === 'number' ? deposit : 0) + (typeof nextPayment === 'number' ? nextPayment : 0);
+          const costJPY = b.cost_price ?? 0;
+          const rate = b.exchange_rate ?? DEFAULT_EXCHANGE_RATE;
+          
+          // ยอดก่อน VAT = ยอดขายบาท / 1.07
+          const salesBeforeVAT = salesTHB / 1.07;
+          // ต้นทุนบาท = ต้นทุนเยน × exchange_rate
+          const costTHB = (typeof costJPY === 'number' ? costJPY : 0) * rate;
+          // กำไร = ยอดก่อน VAT - ต้นทุนบาท
+          const profit = salesBeforeVAT - costTHB;
+          
+          return sum + profit;
         }, 0);
         
         // Store bookings for later mapping with payments
@@ -142,12 +162,6 @@ export const AdminDashboard: React.FC = () => {
                 (typeof amount === 'number' ? amount : 0);
             }
           });
-          
-          // 3. ยอดขายรวม = SUM ของ payments ทั้งหมด
-          totalSalesTHB = payments.reduce((sum: number, p: any) => {
-            const amount = p.amount ?? 0;
-            return sum + (typeof amount === 'number' ? amount : 0);
-          }, 0);
           
           // Filter payments that are "remaining" type (รอชำระส่วนที่เหลือ)
           const remainingPayments = payments.filter((p: any) => p.payment_type === 'remaining');
@@ -189,8 +203,8 @@ export const AdminDashboard: React.FC = () => {
       
       setStats({
         totalCostJPY,
-        totalSellingJPY,
         totalSalesTHB,
+        totalRevenueTHB: Math.round(totalRevenueTHB),
         pendingPayments,
         overduePayments,
       });
@@ -276,12 +290,12 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* 2. ยอดเยนราคาขาย (total_price - JPY) */}
+        {/* 2. ยอดขายรวม (บาท) = deposit + next_payment */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500">ยอดเยนราคาขาย</p>
-              <p className="text-2xl font-bold text-purple-600 mt-1">¥{stats.totalSellingJPY.toLocaleString()}</p>
+              <p className="text-sm font-medium text-gray-500">ยอดขายรวม (บาท)</p>
+              <p className="text-2xl font-bold text-purple-600 mt-1">฿{stats.totalSalesTHB.toLocaleString()}</p>
             </div>
             <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
               <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -291,12 +305,14 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* 3. ยอดขายรวม (deposit_amount - THB) */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+        {/* 3. รายรับหลังหักต้นทุน+VAT (บาท) */}
+        <div className="bg-white rounded-xl border border-green-200 p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500">ยอดขายรวม</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">฿{stats.totalSalesTHB.toLocaleString()}</p>
+              <p className="text-sm font-medium text-gray-500">รายรับหลัง VAT+ต้นทุน</p>
+              <p className={`text-2xl font-bold mt-1 ${stats.totalRevenueTHB >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                ฿{stats.totalRevenueTHB.toLocaleString()}
+              </p>
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
               <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
