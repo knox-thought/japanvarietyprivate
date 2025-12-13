@@ -2,8 +2,9 @@ import React, { useState, useMemo } from 'react';
 import clsx from 'clsx';
 
 interface PriceSettings {
-  markup: number;  // Default 30%
-  vat: number;     // Default 7%
+  markup: number;       // Default 37%
+  vat: number;          // Default 7%
+  exchangeRate: number; // Default 0.21 (JPY to THB)
 }
 
 type Region = 'kanto' | 'kansai';
@@ -89,8 +90,9 @@ const kansaiPrices: PriceRow[] = [
 
 export const PriceTable: React.FC = () => {
   const [settings, setSettings] = useState<PriceSettings>({
-    markup: 30,
+    markup: 37,
     vat: 7,
+    exchangeRate: 0.21,
   });
   const [activeRegion, setActiveRegion] = useState<Region>('kanto');
 
@@ -141,14 +143,14 @@ export const PriceTable: React.FC = () => {
 
       {/* Settings Panel */}
       <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200 p-4 shadow-sm">
-        <div className="flex flex-wrap items-center gap-6">
+        <div className="flex flex-wrap items-center gap-4 lg:gap-6">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-700">⚙️ Markup:</span>
             <input
               type="number"
               value={settings.markup}
               onChange={(e) => setSettings({ ...settings, markup: Number(e.target.value) })}
-              className="w-20 px-3 py-1.5 text-sm border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white"
+              className="w-16 px-2 py-1.5 text-sm border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white text-center"
               min="0"
               max="100"
             />
@@ -161,17 +163,39 @@ export const PriceTable: React.FC = () => {
               type="number"
               value={settings.vat}
               onChange={(e) => setSettings({ ...settings, vat: Number(e.target.value) })}
-              className="w-20 px-3 py-1.5 text-sm border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white"
+              className="w-16 px-2 py-1.5 text-sm border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white text-center"
               min="0"
               max="20"
             />
             <span className="text-sm text-gray-500">%</span>
           </div>
 
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg border border-amber-200">
-            <span className="text-xs text-gray-500">สูตร:</span>
-            <span className="text-xs font-mono text-amber-700">
-              ราคาขาย = ต้นทุน × {(1 + settings.markup / 100).toFixed(2)} × {(1 + settings.vat / 100).toFixed(2)}
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-700">💱 Rate:</span>
+            <input
+              type="number"
+              value={settings.exchangeRate}
+              onChange={(e) => setSettings({ ...settings, exchangeRate: Number(e.target.value) })}
+              className="w-20 px-2 py-1.5 text-sm border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white text-center"
+              min="0"
+              max="1"
+              step="0.01"
+            />
+            <span className="text-xs text-gray-500">¥1 = ฿{settings.exchangeRate}</span>
+          </div>
+        </div>
+        
+        <div className="mt-3 flex flex-wrap gap-2">
+          <div className="px-3 py-1.5 bg-white rounded-lg border border-amber-200 text-xs">
+            <span className="text-gray-500">สูตร JPY:</span>
+            <span className="font-mono text-amber-700 ml-1">
+              ต้นทุน × {(1 + settings.markup / 100).toFixed(2)} × {(1 + settings.vat / 100).toFixed(2)}
+            </span>
+          </div>
+          <div className="px-3 py-1.5 bg-white rounded-lg border border-green-200 text-xs">
+            <span className="text-gray-500">สูตร THB:</span>
+            <span className="font-mono text-green-700 ml-1">
+              ราคาขาย(¥) × {settings.exchangeRate}
             </span>
           </div>
         </div>
@@ -295,11 +319,15 @@ export const PriceTable: React.FC = () => {
                     {/* Price Columns */}
                     {vehicleTypes.map((v) => {
                       const cost = row.costs[v.id];
-                      const selling = calculateSelling(cost);
+                      const sellingJPY = calculateSelling(cost);
+                      const sellingTHB = Math.round(sellingJPY * settings.exchangeRate);
                       return (
-                        <td key={v.id} className="px-3 py-3 text-center border-r border-b border-gray-200">
-                          <span className="font-bold text-gray-900">{formatJPY(selling)}</span>
-                          <span className="block text-xs text-gray-400 mt-0.5">({formatJPY(cost)})</span>
+                        <td key={v.id} className="px-2 py-2 text-center border-r border-b border-gray-200">
+                          <div className="space-y-0.5">
+                            <div className="font-bold text-gray-900 text-sm">{formatJPY(sellingJPY)}</div>
+                            <div className="font-semibold text-green-600 text-xs">฿{sellingTHB.toLocaleString()}</div>
+                            <div className="text-[10px] text-gray-400">({formatJPY(cost)})</div>
+                          </div>
                         </td>
                       );
                     })}
@@ -311,13 +339,23 @@ export const PriceTable: React.FC = () => {
         </div>
 
         {/* Note */}
-        <div className="px-6 py-4 bg-amber-50 border-t border-amber-200">
-          <p className="text-sm text-amber-800">
-            <strong>หมายเหตุ:</strong> ราคาในวงเล็บคือราคาต้นทุนจากบริษัทรถ (สำหรับการตรวจสอบภายใน)
-            <br />
-            <span className="text-xs text-amber-600">
-              ราคาขาย = ต้นทุน + Markup {settings.markup}% + VAT {settings.vat}% (ปัดเป็นพันเยน)
-            </span>
+        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+          <div className="flex flex-wrap gap-4 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 bg-gray-900 rounded"></span>
+              <span className="text-gray-600"><strong>¥XX,XXX</strong> = ราคาขาย (เยน)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 bg-green-500 rounded"></span>
+              <span className="text-gray-600"><strong className="text-green-600">฿X,XXX</strong> = ราคาขาย (บาท)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 bg-gray-300 rounded"></span>
+              <span className="text-gray-600"><span className="text-gray-400">(¥XX,XXX)</span> = ต้นทุน</span>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            Markup {settings.markup}% + VAT {settings.vat}% | อัตราแลกเปลี่ยน ¥1 = ฿{settings.exchangeRate}
           </p>
         </div>
       </div>
